@@ -6,12 +6,12 @@
 
 ## Download APK
 
-> **Latest Release:** [**Download Kalye APK from GitHub Releases**](../../releases/latest)
+> **Latest Release:** [**Download Kalye APK from GitHub Releases**](https://github.com/gianrufin/Kalye/releases/latest)
 >
-> All versioned `.apk` builds and release notes are published on the [**Releases Page**](../../releases).
+> All versioned `.apk` builds and release notes are published on the [**Releases Page**](https://github.com/gianrufin/Kalye/releases).
 
 ### Installing on Android
-1. Open the [**Latest Release**](../../releases/latest) above on your Android device.
+1. Open the [**Latest Release**](https://github.com/gianrufin/Kalye/releases/latest) above on your Android device.
 2. Download the `.apk` asset attached under **Assets**.
 3. Open the downloaded file and allow **Install from this source** if prompted.
 
@@ -42,15 +42,20 @@ This repository includes an automated release workflow at `.github/workflows/rel
    git tag v1.0.0
    git push origin v1.0.0
    ```
-3. GitHub Actions will automatically run `:app:testDebugUnitTest`, build the APK, and publish a GitHub Release with the `.apk` attached so it appears at the [**Download link**](../../releases/latest) above.
+3. GitHub Actions will automatically run `:app:testDebugUnitTest`, build the APK, and publish a GitHub Release with the `.apk` attached so it appears at the [**Download link**](https://github.com/gianrufin/Kalye/releases/latest) above.
 
 You can also trigger a release manually from the **Actions → Release Android APK → Run workflow** button on GitHub.
 
-### Optional: Production Release Signing Secrets
-By default, CI builds an installable APK signed with the project's registered `debug.keystore.base64` (so Google Sign-In works immediately out of the box). To build a release-signed APK in CI, add these repository secrets in **GitHub → Settings → Secrets and variables → Actions**:
-- `RELEASE_KEYSTORE_BASE64`: Base64-encoded `.jks` upload keystore
-- `STORE_PASSWORD`: Keystore password
-- `KEY_PASSWORD`: `upload` key password
+### Optional: Signing Secrets
+If no signing secrets are configured and `debug.keystore.base64` is not present in the repo, the workflow automatically generates a debug signing keystore so the APK builds cleanly (the generated SHA-1 is printed in the workflow log if you need to add it to Firebase for Google Sign-In).
+
+To sign with your own keystore in **GitHub → Settings → Secrets and variables → Actions**:
+- **Debug keystore (matches your AI Studio Firebase SHA-1):**
+  - `DEBUG_KEYSTORE_BASE64`: Contents of `debug.keystore.base64`
+- **Production release keystore:**
+  - `RELEASE_KEYSTORE_BASE64`: Base64-encoded `.jks` upload keystore
+  - `STORE_PASSWORD`: Keystore password
+  - `KEY_PASSWORD`: `upload` key password
 
 ---
 

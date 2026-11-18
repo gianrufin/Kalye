@@ -22,11 +22,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
+
+      - name: Accept Android SDK licenses
+        run: |
+          if [ -d "$ANDROID_HOME/cmdline-tools/latest/bin" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          fi
 
       - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
@@ -35,17 +41,39 @@ jobs:
 
       - name: Prepare signing keystore
         id: signing
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -n "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > my-upload-key.jks
+          if [ -n "$RELEASE_KEYSTORE_BASE64" ] && [ -n "$STORE_PASSWORD" ] && [ -n "$KEY_PASSWORD" ]; then
+            printf '%s' "$RELEASE_KEYSTORE_BASE64" | tr -d '\r\n' | base64 -d > my-upload-key.jks
             echo "mode=release" >> "$GITHUB_OUTPUT"
+          elif [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
+            printf '%s' "$DEBUG_KEYSTORE_BASE64" | tr -d '\r\n' | base64 -d > debug.keystore
+            echo "mode=debug" >> "$GITHUB_OUTPUT"
+          elif [ -f debug.keystore.base64 ]; then
+            tr -d '\r\n' < debug.keystore.base64 | base64 -d > debug.keystore
+            echo "mode=debug" >> "$GITHUB_OUTPUT"
+          elif [ ! -f debug.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+            echo "mode=debug" >> "$GITHUB_OUTPUT"
+            keytool -list -v -keystore debug.keystore -storepass android -alias androiddebugkey | grep -E "SHA1:|SHA256:" || true
           else
-            base64 -d debug.keystore.base64 > debug.keystore
             echo "mode=debug" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run unit tests
-        run: gradle :app:testDebugUnitTest
+        run: gradle :app:testDebugUnitTest --no-daemon
 
       - name: Build APK
         id: build_apk
@@ -54,15 +82,19 @@ jobs:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          TAG="${{ github.event.inputs.tag_name || github.ref_name }}"
+          TAG="${{ inputs.tag_name || github.ref_name }}"
           if [ "${{ steps.signing.outputs.mode }}" = "release" ]; then
-            gradle :app:assembleRelease
+            gradle :app:assembleRelease --no-daemon
             SRC_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
             OUT_APK="kalye-${TAG}-release.apk"
           else
-            gradle :app:assembleDebug
+            gradle :app:assembleDebug --no-daemon
             SRC_APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
             OUT_APK="kalye-${TAG}.apk"
+          fi
+          if [ -z "$SRC_APK" ] || [ ! -f "$SRC_APK" ]; then
+            echo "No APK artifact found!"
+            exit 1
           fi
           cp "$SRC_APK" "$OUT_APK"
           echo "apk_path=$OUT_APK" >> "$GITHUB_OUTPUT"
