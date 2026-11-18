@@ -1,0 +1,194 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidPreferences(data, userId) {
+      return data.userId == userId &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100)) &&
+             data.distanceUnit is string && (data.distanceUnit == 'KM' || data.distanceUnit == 'MI') &&
+             data.currencyCode is string && data.currencyCode.size() >= 1 && data.currencyCode.size() <= 6 &&
+             data.themeMode is string && (data.themeMode == 'SYSTEM' || data.themeMode == 'LIGHT' || data.themeMode == 'DARK') &&
+             data.mapLayer is string && (data.mapLayer == 'TOPO' || data.mapLayer == 'STREET' || data.mapLayer == 'OFFLINE') &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCategory(data, userId) {
+      return data.userId == userId &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 40 &&
+             data.colorHex is int &&
+             data.iconKey is string && data.iconKey.size() >= 1 && data.iconKey.size() <= 30 &&
+             data.defaultTag is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidTrip(data, userId) {
+      return data.userId == userId &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.categoryTag is string && data.categoryTag.size() >= 1 && data.categoryTag.size() <= 40 &&
+             data.notes is string && data.notes.size() <= 1000 &&
+             data.startTimeMillis is int && data.startTimeMillis >= 0 &&
+             data.endTimeMillis is int && data.endTimeMillis >= 0 &&
+             data.distanceMeters is number && data.distanceMeters >= 0 &&
+             data.elevationGainMeters is number && data.elevationGainMeters >= 0 &&
+             data.elevationLossMeters is number && data.elevationLossMeters >= 0 &&
+             data.maxElevationMeters is number &&
+             data.minElevationMeters is number &&
+             data.maxSpeedKmh is number && data.maxSpeedKmh >= 0 &&
+             data.totalFuelCost is number && data.totalFuelCost >= 0 &&
+             data.totalFerryCost is number && data.totalFerryCost >= 0 &&
+             data.totalOtherCost is number && data.totalOtherCost >= 0 &&
+             data.totalFuelLiters is number && data.totalFuelLiters >= 0 &&
+             data.currencyCode is string && data.currencyCode.size() >= 1 && data.currencyCode.size() <= 6 &&
+             data.routePolyline is string && data.routePolyline.size() <= 150000 &&
+             data.pointCount is int && data.pointCount >= 0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidStop(data, userId) {
+      return data.userId == userId &&
+             data.tripId is string && isValidId(data.tripId) &&
+             data.stopType is string &&
+             (data.stopType == 'FUEL' || data.stopType == 'FERRY' || data.stopType == 'CAMP' ||
+              data.stopType == 'STOP_OVER' || data.stopType == 'TOLL' || data.stopType == 'REPAIR') &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.note is string && data.note.size() <= 500 &&
+             data.latitude is number && data.latitude >= -90 && data.latitude <= 90 &&
+             data.longitude is number && data.longitude >= -180 && data.longitude <= 180 &&
+             data.elevationMeters is number &&
+             data.costAmount is number && data.costAmount >= 0 &&
+             data.fuelLiters is number && data.fuelLiters >= 0 &&
+             data.pricePerLiter is number && data.pricePerLiter >= 0 &&
+             data.currencyCode is string && data.currencyCode.size() >= 1 && data.currencyCode.size() <= 6 &&
+             data.timestampMillis is int && data.timestampMillis >= 0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /users/{userId}/settings/{settingId} {
+      allow get: if isOwner(userId) && isValidId(settingId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) &&
+                       isValidId(settingId) &&
+                       incoming().keys().hasAll(['userId', 'distanceUnit', 'currencyCode', 'themeMode', 'mapLayer', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'distanceUnit', 'currencyCode', 'themeMode', 'mapLayer', 'createdAt', 'updatedAt']) &&
+                       isValidPreferences(incoming(), userId);
+      allow update: if isOwner(userId) &&
+                       isValidId(settingId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidPreferences(incoming(), userId) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'distanceUnit', 'currencyCode', 'themeMode', 'mapLayer', 'updatedAt']);
+      allow delete: if isOwner(userId) && isValidId(settingId);
+    }
+
+    match /users/{userId}/categories/{categoryId} {
+      allow get: if isOwner(userId) && isValidId(categoryId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) &&
+                       isValidId(categoryId) &&
+                       incoming().keys().hasAll(['userId', 'name', 'colorHex', 'iconKey', 'defaultTag', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'name', 'colorHex', 'iconKey', 'defaultTag', 'createdAt', 'updatedAt']) &&
+                       isValidCategory(incoming(), userId);
+      allow update: if isOwner(userId) &&
+                       isValidId(categoryId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidCategory(incoming(), userId) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['name', 'colorHex', 'iconKey', 'defaultTag', 'updatedAt']);
+      allow delete: if isOwner(userId) && isValidId(categoryId);
+    }
+
+    match /users/{userId}/trips/{tripId} {
+      allow get: if isOwner(userId) && isValidId(tripId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) &&
+                       isValidId(tripId) &&
+                       incoming().keys().hasAll([
+                         'userId', 'title', 'categoryTag', 'notes', 'startTimeMillis', 'endTimeMillis',
+                         'distanceMeters', 'elevationGainMeters', 'elevationLossMeters',
+                         'maxElevationMeters', 'minElevationMeters', 'maxSpeedKmh',
+                         'totalFuelCost', 'totalFerryCost', 'totalOtherCost', 'totalFuelLiters',
+                         'currencyCode', 'routePolyline', 'pointCount', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'title', 'categoryTag', 'notes', 'startTimeMillis', 'endTimeMillis',
+                         'distanceMeters', 'elevationGainMeters', 'elevationLossMeters',
+                         'maxElevationMeters', 'minElevationMeters', 'maxSpeedKmh',
+                         'totalFuelCost', 'totalFerryCost', 'totalOtherCost', 'totalFuelLiters',
+                         'currencyCode', 'routePolyline', 'pointCount', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidTrip(incoming(), userId);
+      allow update: if isOwner(userId) &&
+                       isValidId(tripId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidTrip(incoming(), userId) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'title', 'categoryTag', 'notes', 'endTimeMillis',
+                         'distanceMeters', 'elevationGainMeters', 'elevationLossMeters',
+                         'maxElevationMeters', 'minElevationMeters', 'maxSpeedKmh',
+                         'totalFuelCost', 'totalFerryCost', 'totalOtherCost', 'totalFuelLiters',
+                         'currencyCode', 'routePolyline', 'pointCount', 'updatedAt'
+                       ]);
+      allow delete: if isOwner(userId) && isValidId(tripId);
+    }
+
+    match /users/{userId}/stops/{stopId} {
+      allow get: if isOwner(userId) && isValidId(stopId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) &&
+                       isValidId(stopId) &&
+                       incoming().keys().hasAll([
+                         'userId', 'tripId', 'stopType', 'title', 'note',
+                         'latitude', 'longitude', 'elevationMeters',
+                         'costAmount', 'fuelLiters', 'pricePerLiter', 'currencyCode',
+                         'timestampMillis', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'tripId', 'stopType', 'title', 'note',
+                         'latitude', 'longitude', 'elevationMeters',
+                         'costAmount', 'fuelLiters', 'pricePerLiter', 'currencyCode',
+                         'timestampMillis', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidStop(incoming(), userId);
+      allow update: if isOwner(userId) &&
+                       isValidId(stopId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().tripId == existing().tripId &&
+                       isValidStop(incoming(), userId) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'stopType', 'title', 'note', 'latitude', 'longitude', 'elevationMeters',
+                         'costAmount', 'fuelLiters', 'pricePerLiter', 'currencyCode',
+                         'timestampMillis', 'updatedAt'
+                       ]);
+      allow delete: if isOwner(userId) && isValidId(stopId);
+    }
+  }
+}

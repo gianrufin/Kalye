@@ -1,0 +1,116 @@
+{
+  "entities": {
+    "UserPreferences": {
+      "title": "UserPreferences",
+      "description": "User unit, currency, theme, and map layer preferences",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "distanceUnit": { "type": "string", "enum": ["KM", "MI"] },
+        "currencyCode": { "type": "string", "description": "ISO currency code" },
+        "themeMode": { "type": "string", "enum": ["SYSTEM", "LIGHT", "DARK"] },
+        "mapLayer": { "type": "string", "enum": ["TOPO", "STREET", "OFFLINE"] },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp" }
+      },
+      "required": ["userId", "distanceUnit", "currencyCode", "themeMode", "mapLayer", "createdAt", "updatedAt"]
+    },
+    "TagCategory": {
+      "title": "TagCategory",
+      "description": "Customizable ride tag category for filtering and tracking",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "colorHex": { "type": "integer" },
+        "iconKey": { "type": "string" },
+        "defaultTag": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "colorHex", "iconKey", "defaultTag", "createdAt", "updatedAt"]
+    },
+    "Trip": {
+      "title": "Trip",
+      "description": "Recorded overland journey with route polyline, elevation stats, and cost totals",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "categoryTag": { "type": "string" },
+        "notes": { "type": "string" },
+        "startTimeMillis": { "type": "integer" },
+        "endTimeMillis": { "type": "integer" },
+        "distanceMeters": { "type": "number" },
+        "elevationGainMeters": { "type": "number" },
+        "elevationLossMeters": { "type": "number" },
+        "maxElevationMeters": { "type": "number" },
+        "minElevationMeters": { "type": "number" },
+        "maxSpeedKmh": { "type": "number" },
+        "totalFuelCost": { "type": "number" },
+        "totalFerryCost": { "type": "number" },
+        "totalOtherCost": { "type": "number" },
+        "totalFuelLiters": { "type": "number" },
+        "currencyCode": { "type": "string" },
+        "routePolyline": { "type": "string" },
+        "pointCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId", "title", "categoryTag", "notes", "startTimeMillis", "endTimeMillis",
+        "distanceMeters", "elevationGainMeters", "elevationLossMeters",
+        "maxElevationMeters", "minElevationMeters", "maxSpeedKmh",
+        "totalFuelCost", "totalFerryCost", "totalOtherCost", "totalFuelLiters",
+        "currencyCode", "routePolyline", "pointCount", "createdAt", "updatedAt"
+      ]
+    },
+    "TripStop": {
+      "title": "TripStop",
+      "description": "Stop-over, fuel log, ferry fee, or camp pin associated with a trip",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "tripId": { "type": "string" },
+        "stopType": { "type": "string", "enum": ["FUEL", "FERRY", "CAMP", "STOP_OVER", "TOLL", "REPAIR"] },
+        "title": { "type": "string" },
+        "note": { "type": "string" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "elevationMeters": { "type": "number" },
+        "costAmount": { "type": "number" },
+        "fuelLiters": { "type": "number" },
+        "pricePerLiter": { "type": "number" },
+        "currencyCode": { "type": "string" },
+        "timestampMillis": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId", "tripId", "stopType", "title", "note",
+        "latitude", "longitude", "elevationMeters",
+        "costAmount", "fuelLiters", "pricePerLiter", "currencyCode",
+        "timestampMillis", "createdAt", "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/UserPreferences" },
+      "description": "User preferences document"
+    },
+    "/users/{userId}/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/TagCategory" },
+      "description": "User custom ride tag categories"
+    },
+    "/users/{userId}/trips/{tripId}": {
+      "schema": { "$ref": "#/entities/Trip" },
+      "description": "User overland trips"
+    },
+    "/users/{userId}/stops/{stopId}": {
+      "schema": { "$ref": "#/entities/TripStop" },
+      "description": "User trip stop-overs, fuel logs, camp pins, and ferry fees"
+    }
+  }
+}

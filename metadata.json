@@ -1,0 +1,6 @@
+{
+  "name": "Kalye",
+  "description": "Offline-first overland ride tracker with high-accuracy GPS, altitude profiling, fuel and ferry cost logging, GPX and spreadsheet export, Strava-style PNG share cards, and cloud sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,77 @@
+name: Release Android APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release version tag (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Prepare signing keystore
+        id: signing
+        run: |
+          if [ -n "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > my-upload-key.jks
+            echo "mode=release" >> "$GITHUB_OUTPUT"
+          else
+            base64 -d debug.keystore.base64 > debug.keystore
+            echo "mode=debug" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run unit tests
+        run: gradle :app:testDebugUnitTest
+
+      - name: Build APK
+        id: build_apk
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          TAG="${{ github.event.inputs.tag_name || github.ref_name }}"
+          if [ "${{ steps.signing.outputs.mode }}" = "release" ]; then
+            gradle :app:assembleRelease
+            SRC_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+            OUT_APK="kalye-${TAG}-release.apk"
+          else
+            gradle :app:assembleDebug
+            SRC_APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+            OUT_APK="kalye-${TAG}.apk"
+          fi
+          cp "$SRC_APK" "$OUT_APK"
+          echo "apk_path=$OUT_APK" >> "$GITHUB_OUTPUT"
+          echo "tag_name=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.build_apk.outputs.tag_name }}
+          name: Kalye ${{ steps.build_apk.outputs.tag_name }}
+          generate_release_notes: true
+          files: ${{ steps.build_apk.outputs.apk_path }}

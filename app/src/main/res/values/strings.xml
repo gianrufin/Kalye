@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">Kalye</string>
+    <string name="widget_description">Quick summary of your daily overland distance, elevation gain, and expedition spend.</string>
+    <string name="tracking_channel_name">Active Ride Tracking</string>
+    <string name="tracking_channel_description">Keeps high-accuracy GPS route and elevation recording active during excursions.</string>
+    <string name="sign_in_google">Sign in with Google</string>
+    <string name="action_start_ride">Start Ride</string>
+    <string name="action_pause_ride">Pause</string>
+    <string name="action_resume_ride">Resume</string>
+    <string name="action_finish_ride">Finish</string>
+    <string name="nav_track">Track</string>
+    <string name="nav_trips">Trips</string>
+    <string name="nav_offline_maps">Offline Maps</string>
+    <string name="nav_settings">Settings</string>
+</resources>
