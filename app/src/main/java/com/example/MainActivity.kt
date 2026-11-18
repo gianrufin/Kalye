@@ -5,9 +5,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -54,14 +57,20 @@ fun KalyeAppRoot() {
     }
 
     val auth = Firebase.auth
-    val currentUser by AuthManager.authStateFlow(auth)
-        .collectAsStateWithLifecycle(initialValue = auth.currentUser)
+    var currentUser by remember { mutableStateOf(auth.currentUser) }
+    DisposableEffect(auth) {
+        val listener = com.google.firebase.auth.FirebaseAuth.AuthStateListener { firebaseAuth ->
+            currentUser = firebaseAuth.currentUser
+        }
+        auth.addAuthStateListener(listener)
+        onDispose { auth.removeAuthStateListener(listener) }
+    }
 
     val user = currentUser
     if (user == null) {
         KalyeTheme {
             AuthScreen(
-                onAuthSuccess = {},
+                onAuthSuccess = { currentUser = auth.currentUser },
                 isFirebaseConfigured = true
             )
         }

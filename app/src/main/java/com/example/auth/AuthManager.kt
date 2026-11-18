@@ -102,7 +102,7 @@ object AuthManager {
         credentialManager: CredentialManager,
         onAuthSuccess: () -> Unit,
         onAuthError: (String) -> Unit,
-        onAuthCancelled: () -> Unit,
+        onAuthCancelled: (String?) -> Unit,
         scope: CoroutineScope
     ) {
         if (FirebaseApp.getApps(context).isEmpty()) {
@@ -136,7 +136,10 @@ object AuthManager {
                 }
             } catch (e: GetCredentialCancellationException) {
                 Log.w(TAG, "Google Sign-In cancelled or dismissed: ${e.message}", e)
-                onAuthCancelled()
+                onAuthCancelled(e.errorMessage?.toString() ?: e.message)
+            } catch (e: androidx.credentials.exceptions.GetCredentialException) {
+                Log.e(TAG, "Google Sign-In credential error (${e.type}): ${e.errorMessage}", e)
+                onAuthError(e.errorMessage?.toString() ?: e.localizedMessage ?: "Google Sign-In failed (${e.type}).")
             } catch (e: Exception) {
                 Log.e(TAG, "Google Sign-In failed", e)
                 onAuthError(e.localizedMessage ?: "Google Sign-In failed.")

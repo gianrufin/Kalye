@@ -208,8 +208,11 @@ fun AuthScreen(
                                 isLoading = false
                                 errorMessage = msg
                             },
-                            onAuthCancelled = {
+                            onAuthCancelled = { reason ->
                                 isLoading = false
+                                if (!reason.isNullOrBlank()) {
+                                    errorMessage = "Sign-in cancelled ($reason). If you tapped an account, verify this build's SHA-1 fingerprint is saved in Firebase Console."
+                                }
                             },
                             scope = scope
                         )
