@@ -55,23 +55,31 @@ import com.example.R
 
 @Composable
 fun AuthScreen(
-    onAuthSuccess: () -> Unit
+    onAuthSuccess: () -> Unit,
+    isFirebaseConfigured: Boolean = true
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val credentialManager = remember(context) { CredentialManager.create(context) }
 
     var isLoading by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(Unit) {
-        AuthManager.attemptAutoSignIn(
-            context = context,
-            credentialManager = credentialManager,
-            onAuthSuccess = onAuthSuccess,
-            onUnauthenticated = {},
-            scope = scope
+    var errorMessage by remember(isFirebaseConfigured) {
+        mutableStateOf(
+            if (isFirebaseConfigured) null
+            else "Firebase is not configured in this build. Add GOOGLE_SERVICES_JSON in GitHub Actions Secrets and rebuild."
         )
+    }
+
+    LaunchedEffect(isFirebaseConfigured) {
+        if (isFirebaseConfigured) {
+            AuthManager.attemptAutoSignIn(
+                context = context,
+                credentialManager = credentialManager,
+                onAuthSuccess = onAuthSuccess,
+                onUnauthenticated = {},
+                scope = scope
+            )
+        }
     }
 
     Scaffold(
@@ -206,7 +214,7 @@ fun AuthScreen(
                             scope = scope
                         )
                     },
-                    enabled = !isLoading,
+                    enabled = !isLoading && isFirebaseConfigured,
                     shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,

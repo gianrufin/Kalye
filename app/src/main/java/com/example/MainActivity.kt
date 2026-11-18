@@ -7,6 +7,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -22,6 +24,7 @@ import com.example.ui.KalyeViewModel
 import com.example.ui.navigation.KalyeMainScaffold
 import com.example.ui.theme.KalyeTheme
 import com.google.firebase.Firebase
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
 
@@ -37,6 +40,19 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun KalyeAppRoot() {
+    val context = LocalContext.current
+    val isFirebaseConfigured = remember(context) { FirebaseApp.getApps(context).isNotEmpty() }
+
+    if (!isFirebaseConfigured) {
+        KalyeTheme {
+            AuthScreen(
+                onAuthSuccess = {},
+                isFirebaseConfigured = false
+            )
+        }
+        return
+    }
+
     val auth = Firebase.auth
     val currentUser by AuthManager.authStateFlow(auth)
         .collectAsStateWithLifecycle(initialValue = auth.currentUser)
@@ -45,7 +61,8 @@ fun KalyeAppRoot() {
     if (user == null) {
         KalyeTheme {
             AuthScreen(
-                onAuthSuccess = {}
+                onAuthSuccess = {},
+                isFirebaseConfigured = true
             )
         }
     } else {

@@ -46,13 +46,13 @@ This repository includes an automated release workflow at `.github/workflows/rel
 
 You can also trigger a release manually from the **Actions → Release Android APK → Run workflow** button on GitHub.
 
-### Optional: Consistent Signing Keystore for Future Updates & Google Sign-In
-If no signing secrets are configured, the workflow automatically generates a temporary debug keystore so the `.apk` builds immediately (the generated SHA-1 is printed in the **Prepare signing keystore** workflow log).
-
-For **in-place app updates** across future releases and a **permanent SHA-1 for Firebase Google Sign-In**, create a reusable `.jks` keystore once and add these secrets in **GitHub → Settings → Secrets and variables → Actions**:
-- `RELEASE_KEYSTORE_BASE64`: Base64-encoded `.jks` upload keystore (`keyAlias`: `upload`)
-- `STORE_PASSWORD`: Keystore password
-- `KEY_PASSWORD`: `upload` key password
+### Optional: Firebase & Consistent Signing Secrets
+- **Firebase & Google Sign-In** (if `app/google-services.json` was excluded when pushing to GitHub):
+  - `GOOGLE_SERVICES_JSON`: Paste the full contents of `app/google-services.json` (from AI Studio or Firebase Console) into **GitHub → Settings → Secrets and variables → Actions**.
+- **Signing Keystore** (optional — if omitted, CI generates a temporary debug keystore automatically):
+  - `RELEASE_KEYSTORE_BASE64`: Base64-encoded `.jks` upload keystore (`keyAlias`: `upload`)
+  - `STORE_PASSWORD`: Keystore password
+  - `KEY_PASSWORD`: `upload` key password
 
 ---
 
