@@ -280,4 +280,100 @@ class KalyeUnitTest {
         assertTrue(urls.first().startsWith("https://tile.openstreetmap.org/12/100/200.png"))
         assertTrue(urls.none { it.contains("api_key", ignoreCase = true) || it.contains("key=", ignoreCase = true) })
     }
+
+    @Test
+    fun `live moving timer ticks per second when active and freezes when paused`() {
+        val baseTrip = TripSummary(
+            id = "t_live",
+            userId = "u1",
+            title = "Cordillera Pass",
+            categoryTag = "Overland",
+            notes = "",
+            startTimeMillis = 10_000L,
+            endTimeMillis = 20_000L,
+            distanceMeters = 500.0,
+            elevationGainMeters = 10.0,
+            elevationLossMeters = 0.0,
+            maxElevationMeters = 100.0,
+            minElevationMeters = 90.0,
+            maxSpeedKmh = 35.0,
+            totalFuelCost = 0.0,
+            totalFerryCost = 0.0,
+            totalOtherCost = 0.0,
+            totalFuelLiters = 0.0,
+            currencyCode = "PHP",
+            routePolyline = "",
+            pointCount = 3,
+            movingDurationMillis = 10_000L,
+            isActive = true,
+            isPaused = false,
+            isAutoPaused = false
+        )
+
+        assertEquals(13_000L, GeoUtils.computeLiveMovingMillis(baseTrip, nowMillis = 23_000L))
+        assertEquals(17_000L, GeoUtils.computeLiveMovingMillis(baseTrip, nowMillis = 27_000L))
+
+        val paused = baseTrip.copy(isPaused = true)
+        assertEquals(10_000L, GeoUtils.computeLiveMovingMillis(paused, nowMillis = 27_000L))
+
+        val autoPaused = baseTrip.copy(isAutoPaused = true)
+        assertEquals(10_000L, GeoUtils.computeLiveMovingMillis(autoPaused, nowMillis = 27_000L))
+    }
+
+    @Test
+    fun `altitude stabilizer rejects spikes and hysteresis eliminates flat-road noise`() {
+        val stabilizer = com.example.data.model.AltitudeStabilizer()
+        val s1 = stabilizer.process(100.0, verticalAccuracyMeters = 4f, timestampMillis = 1_000L)!!
+        val s2 = stabilizer.process(101.0, verticalAccuracyMeters = 4f, timestampMillis = 3_000L)!!
+        // Isolated 45m GPS spike with coarse vertical accuracy must be rejected
+        val spikeRejected = stabilizer.process(146.0, verticalAccuracyMeters = 18f, timestampMillis = 5_000L)!!
+        assertEquals(s2, spikeRejected, 0.001)
+        assertTrue(s1 in 99.0..102.0)
+
+        // Small jitter (< 2.5m) on flat terrain shouldn't add phantom climb, while real 12m climb accumulates
+        val flatJitter = listOf(
+            RoutePoint(14.5, 121.0, 50.0),
+            RoutePoint(14.501, 121.001, 51.4),
+            RoutePoint(14.502, 121.002, 49.8),
+            RoutePoint(14.503, 121.003, 51.2),
+            RoutePoint(14.504, 121.004, 50.1)
+        )
+        val flatStats = GeoUtils.computeElevationStats(flatJitter)
+        assertEquals(0.0, flatStats.gainMeters, 0.01)
+
+        val climb = listOf(
+            RoutePoint(14.5, 121.0, 100.0),
+            RoutePoint(14.501, 121.001, 106.0),
+            RoutePoint(14.502, 121.002, 114.0),
+            RoutePoint(14.503, 121.003, 111.0)
+        )
+        val climbStats = GeoUtils.computeElevationStats(climb)
+        assertEquals(14.0, climbStats.gainMeters, 0.01)
+        assertEquals(3.0, climbStats.lossMeters, 0.01)
+        assertEquals(100.0, climbStats.minMeters, 0.01)
+        assertEquals(114.0, climbStats.maxMeters, 0.01)
+    }
+
+    @Test
+    fun `vehicle body styles include expanded classes and rig avatar models parse safely`() {
+        val styles = com.example.data.model.VehicleBodyStyle.entries
+        assertEquals(8, styles.size)
+        assertTrue(styles.contains(com.example.data.model.VehicleBodyStyle.CROSSOVER))
+        assertTrue(styles.contains(com.example.data.model.VehicleBodyStyle.HATCHBACK))
+        assertTrue(styles.contains(com.example.data.model.VehicleBodyStyle.COUPE))
+        assertTrue(styles.contains(com.example.data.model.VehicleBodyStyle.PICKUP))
+        assertTrue(styles.contains(com.example.data.model.VehicleBodyStyle.SUV_4X4))
+        assertTrue(styles.contains(com.example.data.model.VehicleBodyStyle.SEDAN))
+        assertTrue(styles.contains(com.example.data.model.VehicleBodyStyle.VAN))
+        assertTrue(styles.contains(com.example.data.model.VehicleBodyStyle.MOTO))
+
+        assertEquals(
+            com.example.data.model.VehicleRigGear.EXPEDITION,
+            com.example.data.model.VehicleRigGear.safeFrom("EXPEDITION")
+        )
+        assertEquals(
+            com.example.data.model.RigAvatarBackdrop.ALPINE_PINE,
+            com.example.data.model.RigAvatarBackdrop.safeFrom("UNKNOWN_SCENE")
+        )
+    }
 }

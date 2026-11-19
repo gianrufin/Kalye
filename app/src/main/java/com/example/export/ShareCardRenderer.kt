@@ -60,9 +60,12 @@ object ShareCardRenderer {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
-        val displayTypeface = ResourcesCompat.getFont(context, R.font.space_grotesk) ?: Typeface.DEFAULT_BOLD
-        val bodyTypeface = ResourcesCompat.getFont(context, R.font.plus_jakarta_sans) ?: Typeface.DEFAULT
-        val monoTypeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono) ?: Typeface.MONOSPACE
+        val outfitBase = ResourcesCompat.getFont(context, R.font.outfit) ?: Typeface.DEFAULT_BOLD
+        val displayTypeface = Typeface.create(outfitBase, Typeface.BOLD)
+        val bodyBase = ResourcesCompat.getFont(context, R.font.manrope) ?: Typeface.DEFAULT
+        val bodyTypeface = Typeface.create(bodyBase, Typeface.BOLD)
+        val monoBase = ResourcesCompat.getFont(context, R.font.jetbrains_mono) ?: Typeface.MONOSPACE
+        val monoTypeface = Typeface.create(monoBase, Typeface.BOLD)
 
         val palette = when (config.inkStyle) {
             ShareCardInkStyle.WHITE_TRANSPARENT -> InkPalette(

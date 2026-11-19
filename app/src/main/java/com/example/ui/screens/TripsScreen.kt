@@ -250,9 +250,12 @@ fun TripsScreen(
                         modifier = Modifier.padding(20.dp)
                     )
                 } else {
-                    val totalMeters = filtered.sumOf { it.distanceMeters }
-                    val totalClimb = filtered.sumOf { it.elevationGainMeters }
-                    val totalSpend = filtered.sumOf { it.totalCost }
+                    val totalMeters = remember(filtered) { filtered.sumOf { it.distanceMeters } }
+                    val totalClimb = remember(filtered) { filtered.sumOf { it.elevationGainMeters } }
+                    val totalSpend = remember(filtered) { filtered.sumOf { it.totalCost } }
+                    val stopsCountByTrip = remember(allStops) {
+                        allStops.groupingBy { it.tripId }.eachCount()
+                    }
 
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
@@ -269,7 +272,7 @@ fun TripsScreen(
                         }
 
                         items(filtered, key = { it.id }) { trip ->
-                            val stopsCount = allStops.count { it.tripId == trip.id }
+                            val stopsCount = stopsCountByTrip[trip.id] ?: 0
                             TripHistoryCard(
                                 trip = trip,
                                 stopsCount = stopsCount,

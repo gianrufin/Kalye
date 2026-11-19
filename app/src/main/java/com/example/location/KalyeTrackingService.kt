@@ -86,7 +86,9 @@ class KalyeTrackingService : Service() {
                             else -> "Recording"
                         }
                         val dist = GeoUtils.formatDistance(trip.distanceMeters, prefs.distanceUnit)
-                        val moving = GeoUtils.formatMovingTime(trip.movingDurationMillis)
+                        val moving = GeoUtils.formatMovingTime(
+                            GeoUtils.computeLiveMovingMillis(trip.toDomain())
+                        )
                         val mgr = getSystemService(NotificationManager::class.java)
                         mgr.notify(NOTIFICATION_ID, buildNotification("$status • $dist • $moving"))
                     }

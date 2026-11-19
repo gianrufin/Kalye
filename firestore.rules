@@ -51,12 +51,14 @@ service cloud.firestore {
              data.nickname is string && data.nickname.size() >= 1 && data.nickname.size() <= 60 &&
              data.makeModel is string && data.makeModel.size() >= 1 && data.makeModel.size() <= 100 &&
              data.bodyStyle is string &&
-             (data.bodyStyle == 'SUV_4X4' || data.bodyStyle == 'PICKUP' || data.bodyStyle == 'SEDAN' ||
+             (data.bodyStyle == 'SUV_4X4' || data.bodyStyle == 'CROSSOVER' || data.bodyStyle == 'PICKUP' ||
+              data.bodyStyle == 'SEDAN' || data.bodyStyle == 'HATCHBACK' || data.bodyStyle == 'COUPE' ||
               data.bodyStyle == 'VAN' || data.bodyStyle == 'MOTO') &&
              data.drivetrain is string && data.drivetrain.size() >= 1 && data.drivetrain.size() <= 20 &&
              data.fuelType is string && data.fuelType.size() >= 1 && data.fuelType.size() <= 24 &&
              data.accentColorHex is int &&
              data.startingOdometerKm is number && data.startingOdometerKm >= 0 &&
+             (!('rigGear' in data) || (data.rigGear in ['STOCK', 'ROOF_RACK', 'EXPEDITION', 'RALLY_TRIM'])) &&
              data.createdAt is timestamp && data.createdAt <= request.time &&
              data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
@@ -153,7 +155,7 @@ service cloud.firestore {
                        ]) &&
                        incoming().keys().hasOnly([
                          'userId', 'nickname', 'makeModel', 'bodyStyle', 'drivetrain',
-                         'fuelType', 'accentColorHex', 'startingOdometerKm', 'createdAt', 'updatedAt'
+                         'fuelType', 'accentColorHex', 'startingOdometerKm', 'rigGear', 'createdAt', 'updatedAt'
                        ]) &&
                        isValidVehicle(incoming(), userId);
       allow update: if isOwner(userId) &&
@@ -163,7 +165,7 @@ service cloud.firestore {
                        isValidVehicle(incoming(), userId) &&
                        incoming().diff(existing()).affectedKeys().hasOnly([
                          'nickname', 'makeModel', 'bodyStyle', 'drivetrain',
-                         'fuelType', 'accentColorHex', 'startingOdometerKm', 'updatedAt'
+                         'fuelType', 'accentColorHex', 'startingOdometerKm', 'rigGear', 'updatedAt'
                        ]);
       allow delete: if isOwner(userId) && isValidId(vehicleId);
     }

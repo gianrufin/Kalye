@@ -79,17 +79,72 @@ enum class ShareCardInkStyle(val label: String, val isTransparent: Boolean) {
 
 @Serializable
 enum class VehicleBodyStyle(val label: String) {
-    SUV_4X4("4x4 SUV"),
-    PICKUP("Overland Pickup"),
-    SEDAN("Touring Sedan"),
-    VAN("Camper Van"),
-    MOTO("Dual-Sport Moto");
+    SUV_4X4("SUV / 4x4"),
+    CROSSOVER("Crossover"),
+    PICKUP("Pickup"),
+    SEDAN("Sedan"),
+    HATCHBACK("Hatchback"),
+    COUPE("Coupe"),
+    VAN("Van / Camper"),
+    MOTO("Motorcycle");
 
     companion object {
         fun safeFrom(raw: String?): VehicleBodyStyle =
             entries.firstOrNull { it.name == raw } ?: SUV_4X4
     }
 }
+
+@Serializable
+enum class VehicleRigGear(val label: String) {
+    STOCK("Stock"),
+    ROOF_RACK("Roof Rack"),
+    EXPEDITION("Overland Kit"),
+    RALLY_TRIM("Rally Trim");
+
+    companion object {
+        fun safeFrom(raw: String?): VehicleRigGear =
+            entries.firstOrNull { it.name == raw } ?: STOCK
+    }
+}
+
+@Serializable
+enum class RigAvatarBackdrop(
+    val label: String,
+    val topHex: Long,
+    val bottomHex: Long,
+    val ridgeHex: Long
+) {
+    ALPINE_PINE("Alpine Pine", 0xFF143124L, 0xFF285C45L, 0xFF66C79AL),
+    CANYON_EMBER("Canyon Dusk", 0xFF33180FL, 0xFFC86428L, 0xFFF3B169L),
+    TOPO_CHARCOAL("Night Topo", 0xFF101412L, 0xFF242D28L, 0xFFE87842L),
+    DESERT_DUNE("Dune Sand", 0xFF5D4623L, 0xFFC99838L, 0xFFF6E7C8L),
+    FJORD_SLATE("Fjord Slate", 0xFF1A2836L, 0xFF425E75L, 0xFFB8D3E6L);
+
+    companion object {
+        fun safeFrom(raw: String?): RigAvatarBackdrop =
+            entries.firstOrNull { it.name == raw } ?: ALPINE_PINE
+    }
+}
+
+@Serializable
+enum class RigAvatarFrame(val label: String) {
+    COMPASS_RING("Compass Dial"),
+    TRAIL_BORDER("Ember Ring"),
+    CLEAN_DISC("Minimal Disc");
+
+    companion object {
+        fun safeFrom(raw: String?): RigAvatarFrame =
+            entries.firstOrNull { it.name == raw } ?: COMPASS_RING
+    }
+}
+
+@Serializable
+data class RigAvatarSpec(
+    val vehicleId: String? = null,
+    val backdrop: RigAvatarBackdrop = RigAvatarBackdrop.ALPINE_PINE,
+    val frame: RigAvatarFrame = RigAvatarFrame.COMPASS_RING,
+    val callsign: String = ""
+)
 
 @Serializable
 data class VehicleProfile(
@@ -100,7 +155,8 @@ data class VehicleProfile(
     val drivetrain: String = "4x4",
     val fuelType: String = "Diesel",
     val accentColorHex: Long = 0xFF4B5D38L,
-    val startingOdometerKm: Double = 0.0
+    val startingOdometerKm: Double = 0.0,
+    val rigGear: VehicleRigGear = VehicleRigGear.STOCK
 )
 
 data class VehicleStats(
@@ -148,7 +204,8 @@ data class UserPreferences(
     val activeTripId: String? = null,
     val activeVehicleId: String? = null,
     val garageOnboardingDismissed: Boolean = false,
-    val stealthModeEnabled: Boolean = false
+    val stealthModeEnabled: Boolean = false,
+    val rigAvatar: RigAvatarSpec = RigAvatarSpec()
 )
 
 data class RoutePoint(
@@ -158,7 +215,8 @@ data class RoutePoint(
     val accuracyMeters: Float = 5f,
     val speedMps: Float = 0f,
     val bearing: Float = 0f,
-    val timestampMillis: Long = System.currentTimeMillis()
+    val timestampMillis: Long = System.currentTimeMillis(),
+    val verticalAccuracyMeters: Float = 10f
 )
 
 data class TripSummary(
@@ -290,6 +348,7 @@ data class FirestoreVehicle(
     val fuelType: String = "Diesel",
     val accentColorHex: Long = 0xFF4B5D38L,
     val startingOdometerKm: Double = 0.0,
+    val rigGear: String = "STOCK",
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
 )
@@ -402,6 +461,7 @@ fun VehicleProfile.toCreateMap(uid: String): Map<String, Any> = mapOf(
     "fuelType" to fuelType.take(24).ifBlank { "Diesel" },
     "accentColorHex" to accentColorHex,
     "startingOdometerKm" to startingOdometerKm.coerceAtLeast(0.0),
+    "rigGear" to rigGear.name,
     "createdAt" to FieldValue.serverTimestamp(),
     "updatedAt" to FieldValue.serverTimestamp()
 )
@@ -414,6 +474,7 @@ fun VehicleProfile.toUpdateMap(): Map<String, Any> = mapOf(
     "fuelType" to fuelType.take(24).ifBlank { "Diesel" },
     "accentColorHex" to accentColorHex,
     "startingOdometerKm" to startingOdometerKm.coerceAtLeast(0.0),
+    "rigGear" to rigGear.name,
     "updatedAt" to FieldValue.serverTimestamp()
 )
 
@@ -557,6 +618,49 @@ object GeoUtils {
         }
     }
 
+    fun computeLiveMovingMillis(
+        trip: TripSummary,
+        nowMillis: Long = System.currentTimeMillis()
+    ): Long {
+        if (!trip.isActive) return trip.effectiveMovingMillis
+        val base = trip.movingDurationMillis.coerceAtLeast(0L)
+        if (trip.isPaused || trip.isAutoPaused) return base
+        val anchor = maxOf(trip.endTimeMillis, trip.startTimeMillis)
+        val elapsedSinceAnchor = (nowMillis - anchor).coerceIn(0L, 60_000L)
+        return base + elapsedSinceAnchor
+    }
+
+    fun computeElevationStats(
+        points: List<RoutePoint>,
+        hysteresisMeters: Double = 2.5
+    ): ElevationStats {
+        if (points.isEmpty()) return ElevationStats()
+        var anchor = points.first().altitudeMeters
+        var minEle = anchor
+        var maxEle = anchor
+        var gain = 0.0
+        var loss = 0.0
+        for (i in 1 until points.size) {
+            val alt = points[i].altitudeMeters
+            if (alt < minEle) minEle = alt
+            if (alt > maxEle) maxEle = alt
+            val diff = alt - anchor
+            if (diff >= hysteresisMeters) {
+                gain += diff
+                anchor = alt
+            } else if (diff <= -hysteresisMeters) {
+                loss += -diff
+                anchor = alt
+            }
+        }
+        return ElevationStats(
+            gainMeters = gain,
+            lossMeters = loss,
+            minMeters = minEle,
+            maxMeters = maxEle
+        )
+    }
+
     fun formatOdometer(km: Double, unit: DistanceUnit): String {
         val value = when (unit) {
             DistanceUnit.KM -> km
@@ -592,6 +696,72 @@ object GeoUtils {
         if (distUnits <= 0.0) return null
         val symbol = CurrencyCatalog.symbolFor(currencyCode)
         return String.format(Locale.US, "%s%.2f/%s", symbol, totalCost / distUnits, unit.shortLabel)
+    }
+}
+
+data class ElevationStats(
+    val gainMeters: Double = 0.0,
+    val lossMeters: Double = 0.0,
+    val minMeters: Double = 0.0,
+    val maxMeters: Double = 0.0
+)
+
+class AltitudeStabilizer {
+    private val recentWindow = ArrayDeque<Double>()
+    private var smoothedElevation: Double? = null
+    private var lastAcceptedTimeMillis: Long = 0L
+
+    fun reset() {
+        recentWindow.clear()
+        smoothedElevation = null
+        lastAcceptedTimeMillis = 0L
+    }
+
+    fun process(
+        rawMslMeters: Double,
+        verticalAccuracyMeters: Float,
+        timestampMillis: Long
+    ): Double? {
+        if (!rawMslMeters.isFinite()) return smoothedElevation
+
+        val previous = smoothedElevation
+        // Reject extreme low-quality fixes once we already have a baseline
+        if (previous != null && verticalAccuracyMeters > 40f) {
+            return previous
+        }
+
+        // Reject isolated altitude spikes (> 25m jump within < 6s with coarse vertical accuracy)
+        if (previous != null) {
+            val dtMillis = (timestampMillis - lastAcceptedTimeMillis).coerceAtLeast(1L)
+            val jump = kotlin.math.abs(rawMslMeters - previous)
+            if (dtMillis < 6_000L && jump > 25.0 && verticalAccuracyMeters > 6f) {
+                return previous
+            }
+        }
+
+        recentWindow.addLast(rawMslMeters)
+        if (recentWindow.size > 5) recentWindow.removeFirst()
+
+        val medianSample = recentWindow.sorted().let { sorted ->
+            val mid = sorted.size / 2
+            if (sorted.size % 2 == 1) sorted[mid] else (sorted[mid - 1] + sorted[mid]) / 2.0
+        }
+
+        val alpha = when {
+            verticalAccuracyMeters <= 6f -> 0.50
+            verticalAccuracyMeters <= 12f -> 0.34
+            verticalAccuracyMeters <= 25f -> 0.20
+            else -> 0.10
+        }
+
+        val nextSmoothed = if (previous == null) {
+            medianSample
+        } else {
+            previous + alpha * (medianSample - previous)
+        }
+        smoothedElevation = nextSmoothed
+        lastAcceptedTimeMillis = timestampMillis
+        return nextSmoothed
     }
 }
 

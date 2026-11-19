@@ -517,7 +517,7 @@ private fun MetricTile(label: String, value: String, modifier: Modifier = Modifi
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = value,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
                 color = MaterialTheme.colorScheme.onSurface
             )
         }

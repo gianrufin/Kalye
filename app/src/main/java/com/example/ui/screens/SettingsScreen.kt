@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.DarkMode
@@ -34,7 +35,6 @@ import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.NewReleases
 import androidx.compose.material.icons.rounded.OpenInBrowser
-import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -76,6 +76,8 @@ import com.example.data.model.DistanceUnit
 import com.example.data.model.MapLayerType
 import com.example.data.model.ThemeMode
 import com.example.ui.KalyeViewModel
+import com.example.ui.components.RigAvatarBadge
+import com.example.ui.components.RigAvatarStudioSheet
 import com.example.ui.components.VehicleRigIllustration
 import com.example.update.AppUpdateChecker
 import com.example.update.AppUpdateStatus
@@ -99,8 +101,13 @@ fun SettingsScreen(
     val updateStatus by viewModel.updateStatus.collectAsStateWithLifecycle()
 
     var showAddTagDialog by remember { mutableStateOf(false) }
+    var showAvatarStudio by remember { mutableStateOf(false) }
     var newTagName by remember { mutableStateOf("") }
     var selectedTagColor by remember { mutableLongStateOf(0xFFB84A27L) }
+
+    val avatarVehicle = remember(vehicles, activeVehicle, preferences.rigAvatar.vehicleId) {
+        vehicles.firstOrNull { it.id == preferences.rigAvatar.vehicleId } ?: activeVehicle
+    }
 
     val colorSwatches = remember {
         listOf(
@@ -166,9 +173,10 @@ fun SettingsScreen(
                             VehicleRigIllustration(
                                 bodyStyle = currentRig.bodyStyle,
                                 accentColor = Color(currentRig.accentColorHex),
+                                rigGear = currentRig.rigGear,
                                 modifier = Modifier
-                                    .fillMaxWidth(0.86f)
-                                    .height(46.dp)
+                                    .fillMaxWidth(0.88f)
+                                    .height(48.dp)
                             )
                         } else {
                             Icon(
@@ -224,19 +232,14 @@ fun SettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(46.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Person,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
+                        RigAvatarBadge(
+                            vehicle = avatarVehicle,
+                            spec = preferences.rigAvatar,
+                            size = 60.dp,
+                            showEditPill = true,
+                            onClick = { showAvatarStudio = true },
+                            modifier = Modifier.testTag("settings_rig_avatar_badge")
+                        )
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
@@ -248,6 +251,14 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+                        TextButton(
+                            onClick = { showAvatarStudio = true },
+                            modifier = Modifier.testTag("settings_edit_avatar_button")
+                        ) {
+                            Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Avatar")
                         }
                     }
 
@@ -516,6 +527,32 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(onClick = { showAddTagDialog = false }) { Text("Cancel") }
             }
+        )
+    }
+
+    if (showAvatarStudio) {
+        RigAvatarStudioSheet(
+            vehicles = vehicles,
+            activeVehicle = activeVehicle,
+            currentSpec = preferences.rigAvatar,
+            onDismiss = { showAvatarStudio = false },
+            onSaveAvatar = { spec, chosenVeh, newGear ->
+                if (chosenVeh != null && newGear != null) {
+                    viewModel.updateVehicle(
+                        vehicleId = chosenVeh.id,
+                        nickname = chosenVeh.nickname,
+                        makeModel = chosenVeh.makeModel,
+                        bodyStyle = chosenVeh.bodyStyle,
+                        drivetrain = chosenVeh.drivetrain,
+                        fuelType = chosenVeh.fuelType,
+                        accentColorHex = chosenVeh.accentColorHex,
+                        startingOdometerKm = chosenVeh.startingOdometerKm,
+                        rigGear = newGear
+                    )
+                }
+                viewModel.updateRigAvatar(spec)
+            },
+            onAddRigFirst = onOpenGarage
         )
     }
 }

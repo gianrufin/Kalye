@@ -39,6 +39,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Edit
@@ -48,6 +49,7 @@ import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -76,8 +78,11 @@ import com.example.data.model.DistanceUnit
 import com.example.data.model.GeoUtils
 import com.example.data.model.VehicleBodyStyle
 import com.example.data.model.VehicleProfile
+import com.example.data.model.VehicleRigGear
 import com.example.data.model.VehicleStats
 import com.example.ui.KalyeViewModel
+import com.example.ui.components.RigAvatarBadge
+import com.example.ui.components.RigAvatarStudioSheet
 import com.example.ui.components.VehicleRigIllustration
 import java.util.Locale
 
@@ -98,6 +103,11 @@ fun VehicleGarageScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var editingVehicle by remember { mutableStateOf<VehicleProfile?>(null) }
     var deletingVehicle by remember { mutableStateOf<VehicleProfile?>(null) }
+    var showAvatarStudio by remember { mutableStateOf(false) }
+
+    val avatarVehicle = remember(vehicles, activeVehicle, preferences.rigAvatar.vehicleId) {
+        vehicles.firstOrNull { it.id == preferences.rigAvatar.vehicleId } ?: activeVehicle
+    }
 
     Column(
         modifier = Modifier
@@ -130,6 +140,15 @@ fun VehicleGarageScreen(
                     style = MaterialTheme.typography.headlineMedium
                 )
             }
+            RigAvatarBadge(
+                vehicle = avatarVehicle,
+                spec = preferences.rigAvatar,
+                size = 48.dp,
+                showEditPill = true,
+                onClick = { showAvatarStudio = true },
+                modifier = Modifier.testTag("garage_avatar_studio_badge")
+            )
+            Spacer(modifier = Modifier.width(6.dp))
             IconButton(
                 onClick = { showAddDialog = true },
                 modifier = Modifier.testTag("add_vehicle_button")
@@ -223,9 +242,10 @@ fun VehicleGarageScreen(
                                     VehicleRigIllustration(
                                         bodyStyle = hero.bodyStyle,
                                         accentColor = Color(hero.accentColorHex),
+                                        rigGear = hero.rigGear,
                                         modifier = Modifier
-                                            .fillMaxWidth(0.76f)
-                                            .height(122.dp)
+                                            .fillMaxWidth(0.78f)
+                                            .height(124.dp)
                                     )
                                 }
 
@@ -343,6 +363,25 @@ fun VehicleGarageScreen(
                                             )
                                         }
                                     }
+                                    if (hero.rigGear != VehicleRigGear.STOCK) {
+                                        SpecBadgeChip(
+                                            icon = Icons.Rounded.AutoAwesome,
+                                            text = hero.rigGear.label
+                                        )
+                                    }
+                                }
+
+                                FilledTonalButton(
+                                    onClick = { showAvatarStudio = true },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(48.dp)
+                                        .testTag("garage_customize_avatar_button")
+                                ) {
+                                    Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Customize Rig Avatar Badge", style = MaterialTheme.typography.labelLarge)
                                 }
                             }
                         }
@@ -402,8 +441,8 @@ fun VehicleGarageScreen(
             existing = null,
             distanceUnit = preferences.distanceUnit,
             onDismiss = { showAddDialog = false },
-            onSave = { nickname, makeModel, bodyStyle, drivetrain, fuelType, colorHex, odoKm ->
-                viewModel.addVehicle(nickname, makeModel, bodyStyle, drivetrain, fuelType, colorHex, odoKm)
+            onSave = { nickname, makeModel, bodyStyle, drivetrain, fuelType, colorHex, odoKm, rigGear ->
+                viewModel.addVehicle(nickname, makeModel, bodyStyle, drivetrain, fuelType, colorHex, odoKm, rigGear)
                 showAddDialog = false
             }
         )
@@ -414,7 +453,7 @@ fun VehicleGarageScreen(
             existing = target,
             distanceUnit = preferences.distanceUnit,
             onDismiss = { editingVehicle = null },
-            onSave = { nickname, makeModel, bodyStyle, drivetrain, fuelType, colorHex, odoKm ->
+            onSave = { nickname, makeModel, bodyStyle, drivetrain, fuelType, colorHex, odoKm, rigGear ->
                 viewModel.updateVehicle(
                     vehicleId = target.id,
                     nickname = nickname,
@@ -423,10 +462,37 @@ fun VehicleGarageScreen(
                     drivetrain = drivetrain,
                     fuelType = fuelType,
                     accentColorHex = colorHex,
-                    startingOdometerKm = odoKm
+                    startingOdometerKm = odoKm,
+                    rigGear = rigGear
                 )
                 editingVehicle = null
             }
+        )
+    }
+
+    if (showAvatarStudio) {
+        RigAvatarStudioSheet(
+            vehicles = vehicles,
+            activeVehicle = activeVehicle,
+            currentSpec = preferences.rigAvatar,
+            onDismiss = { showAvatarStudio = false },
+            onSaveAvatar = { spec, chosenVeh, newGear ->
+                if (chosenVeh != null && newGear != null) {
+                    viewModel.updateVehicle(
+                        vehicleId = chosenVeh.id,
+                        nickname = chosenVeh.nickname,
+                        makeModel = chosenVeh.makeModel,
+                        bodyStyle = chosenVeh.bodyStyle,
+                        drivetrain = chosenVeh.drivetrain,
+                        fuelType = chosenVeh.fuelType,
+                        accentColorHex = chosenVeh.accentColorHex,
+                        startingOdometerKm = chosenVeh.startingOdometerKm,
+                        rigGear = newGear
+                    )
+                }
+                viewModel.updateRigAvatar(spec)
+            },
+            onAddRigFirst = { showAddDialog = true }
         )
     }
 
@@ -560,9 +626,10 @@ private fun VehicleListCard(
                 VehicleRigIllustration(
                     bodyStyle = vehicle.bodyStyle,
                     accentColor = Color(vehicle.accentColorHex),
+                    rigGear = vehicle.rigGear,
                     modifier = Modifier
-                        .fillMaxWidth(0.88f)
-                        .height(42.dp)
+                        .fillMaxWidth(0.90f)
+                        .height(44.dp)
                 )
             }
 
@@ -639,7 +706,7 @@ private fun AddEditVehicleDialog(
     existing: VehicleProfile?,
     distanceUnit: DistanceUnit,
     onDismiss: () -> Unit,
-    onSave: (String, String, VehicleBodyStyle, String, String, Long, Double) -> Unit
+    onSave: (String, String, VehicleBodyStyle, String, String, Long, Double, VehicleRigGear) -> Unit
 ) {
     var nickname by remember(existing) { mutableStateOf(existing?.nickname ?: "") }
     var makeModel by remember(existing) { mutableStateOf(existing?.makeModel ?: "") }
@@ -656,6 +723,7 @@ private fun AddEditVehicleDialog(
     var drivetrain by remember(existing) { mutableStateOf(existing?.drivetrain ?: "4x4") }
     var fuelType by remember(existing) { mutableStateOf(existing?.fuelType ?: "Diesel") }
     var colorHex by remember(existing) { mutableLongStateOf(existing?.accentColorHex ?: 0xFF4B5D38L) }
+    var rigGear by remember(existing) { mutableStateOf(existing?.rigGear ?: VehicleRigGear.STOCK) }
 
     val colorSwatches = remember {
         listOf(
@@ -681,7 +749,7 @@ private fun AddEditVehicleDialog(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(84.dp)
+                        .height(92.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
@@ -689,9 +757,10 @@ private fun AddEditVehicleDialog(
                     VehicleRigIllustration(
                         bodyStyle = bodyStyle,
                         accentColor = Color(colorHex),
+                        rigGear = rigGear,
                         modifier = Modifier
-                            .fillMaxWidth(0.7f)
-                            .height(68.dp)
+                            .fillMaxWidth(0.74f)
+                            .height(74.dp)
                     )
                 }
 
@@ -728,15 +797,31 @@ private fun AddEditVehicleDialog(
                 )
 
                 Text("BODY STYLE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     VehicleBodyStyle.entries.forEach { style ->
                         FilterChip(
                             selected = bodyStyle == style,
                             onClick = { bodyStyle = style },
-                            label = { Text(style.label) }
+                            label = { Text(style.label) },
+                            modifier = Modifier.testTag("garage_style_${style.name.lowercase()}")
+                        )
+                    }
+                }
+
+                Text("RIG GEAR & TRIM", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    VehicleRigGear.entries.forEach { gear ->
+                        FilterChip(
+                            selected = rigGear == gear,
+                            onClick = { rigGear = gear },
+                            label = { Text(gear.label) },
+                            modifier = Modifier.testTag("garage_gear_${gear.name.lowercase()}")
                         )
                     }
                 }
@@ -788,7 +873,7 @@ private fun AddEditVehicleDialog(
                 onClick = {
                     val rawOdo = odometerInput.toDoubleOrNull()?.coerceAtLeast(0.0) ?: 0.0
                     val odoKm = if (distanceUnit == DistanceUnit.MI) rawOdo * 1.609344 else rawOdo
-                    onSave(nickname, makeModel, bodyStyle, drivetrain, fuelType, colorHex, odoKm)
+                    onSave(nickname, makeModel, bodyStyle, drivetrain, fuelType, colorHex, odoKm, rigGear)
                 },
                 modifier = Modifier.testTag("save_vehicle_button")
             ) {

@@ -77,11 +77,12 @@
         "userId": { "type": "string" },
         "nickname": { "type": "string" },
         "makeModel": { "type": "string" },
-        "bodyStyle": { "type": "string", "enum": ["SUV_4X4", "PICKUP", "SEDAN", "VAN", "MOTO"] },
+        "bodyStyle": { "type": "string", "enum": ["SUV_4X4", "CROSSOVER", "PICKUP", "SEDAN", "HATCHBACK", "COUPE", "VAN", "MOTO"] },
         "drivetrain": { "type": "string" },
         "fuelType": { "type": "string" },
         "accentColorHex": { "type": "integer" },
         "startingOdometerKm": { "type": "number" },
+        "rigGear": { "type": "string", "enum": ["STOCK", "ROOF_RACK", "EXPEDITION", "RALLY_TRIM"] },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },

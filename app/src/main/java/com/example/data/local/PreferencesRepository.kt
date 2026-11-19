@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.data.model.DistanceUnit
 import com.example.data.model.MapLayerType
+import com.example.data.model.RigAvatarSpec
 import com.example.data.model.ThemeMode
 import com.example.data.model.UserPreferences
 import com.example.data.model.VehicleProfile
@@ -29,9 +30,13 @@ class PreferencesRepository(private val context: Context) {
         val VEHICLES_JSON = stringPreferencesKey("vehicles_json")
         val GARAGE_ONBOARDING_DISMISSED = booleanPreferencesKey("garage_onboarding_dismissed")
         val STEALTH_MODE_ENABLED = booleanPreferencesKey("stealth_mode_enabled")
+        val RIG_AVATAR_JSON = stringPreferencesKey("rig_avatar_json")
     }
 
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json {
+        ignoreUnknownKeys = true
+        coerceInputValues = true
+    }
 
     val preferencesFlow: Flow<UserPreferences> = context.kalyeDataStore.data.map { prefs ->
         UserPreferences(
@@ -42,7 +47,8 @@ class PreferencesRepository(private val context: Context) {
             activeTripId = prefs[Keys.ACTIVE_TRIP_ID],
             activeVehicleId = prefs[Keys.ACTIVE_VEHICLE_ID]?.takeIf { it.isNotBlank() },
             garageOnboardingDismissed = prefs[Keys.GARAGE_ONBOARDING_DISMISSED] ?: false,
-            stealthModeEnabled = prefs[Keys.STEALTH_MODE_ENABLED] ?: false
+            stealthModeEnabled = prefs[Keys.STEALTH_MODE_ENABLED] ?: false,
+            rigAvatar = decodeRigAvatar(prefs[Keys.RIG_AVATAR_JSON])
         )
     }
 
@@ -74,6 +80,12 @@ class PreferencesRepository(private val context: Context) {
         context.kalyeDataStore.edit { it[Keys.STEALTH_MODE_ENABLED] = enabled }
     }
 
+    suspend fun setRigAvatar(spec: RigAvatarSpec) {
+        context.kalyeDataStore.edit {
+            it[Keys.RIG_AVATAR_JSON] = json.encodeToString(spec)
+        }
+    }
+
     suspend fun setActiveTripId(tripId: String?) {
         context.kalyeDataStore.edit { prefs ->
             if (tripId == null) prefs.remove(Keys.ACTIVE_TRIP_ID)
@@ -95,6 +107,10 @@ class PreferencesRepository(private val context: Context) {
             prefs[Keys.VEHICLES_JSON] = json.encodeToString(updated)
             prefs[Keys.ACTIVE_VEHICLE_ID] = vehicle.id
             prefs[Keys.GARAGE_ONBOARDING_DISMISSED] = true
+            val avatar = decodeRigAvatar(prefs[Keys.RIG_AVATAR_JSON])
+            if (avatar.vehicleId.isNullOrBlank()) {
+                prefs[Keys.RIG_AVATAR_JSON] = json.encodeToString(avatar.copy(vehicleId = vehicle.id))
+            }
         }
     }
 
@@ -112,14 +128,21 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun replaceVehiclesFromCloud(remoteVehicles: List<VehicleProfile>) {
         context.kalyeDataStore.edit { prefs ->
-            prefs[Keys.VEHICLES_JSON] = json.encodeToString(remoteVehicles)
-            val currentActive = prefs[Keys.ACTIVE_VEHICLE_ID]
-            if (remoteVehicles.isEmpty()) {
-                prefs.remove(Keys.ACTIVE_VEHICLE_ID)
-            } else if (currentActive.isNullOrBlank() || remoteVehicles.none { it.id == currentActive }) {
-                prefs[Keys.ACTIVE_VEHICLE_ID] = remoteVehicles.first().id
+            val existingById = decodeVehicles(prefs[Keys.VEHICLES_JSON]).associateBy { it.id }
+            val merged = remoteVehicles.map { rv ->
+                val local = existingById[rv.id]
+                if (local != null && rv.rigGear == com.example.data.model.VehicleRigGear.STOCK) {
+                    rv.copy(rigGear = local.rigGear)
+                } else rv
             }
-            if (remoteVehicles.isNotEmpty()) {
+            prefs[Keys.VEHICLES_JSON] = json.encodeToString(merged)
+            val currentActive = prefs[Keys.ACTIVE_VEHICLE_ID]
+            if (merged.isEmpty()) {
+                prefs.remove(Keys.ACTIVE_VEHICLE_ID)
+            } else if (currentActive.isNullOrBlank() || merged.none { it.id == currentActive }) {
+                prefs[Keys.ACTIVE_VEHICLE_ID] = merged.first().id
+            }
+            if (merged.isNotEmpty()) {
                 prefs[Keys.GARAGE_ONBOARDING_DISMISSED] = true
             }
         }
@@ -138,11 +161,22 @@ class PreferencesRepository(private val context: Context) {
                     prefs.remove(Keys.ACTIVE_VEHICLE_ID)
                 }
             }
+            val avatar = decodeRigAvatar(prefs[Keys.RIG_AVATAR_JSON])
+            if (avatar.vehicleId == vehicleId) {
+                prefs[Keys.RIG_AVATAR_JSON] = json.encodeToString(
+                    avatar.copy(vehicleId = remaining.firstOrNull()?.id)
+                )
+            }
         }
     }
 
     private fun decodeVehicles(raw: String?): List<VehicleProfile> {
         if (raw.isNullOrBlank()) return emptyList()
         return runCatching { json.decodeFromString<List<VehicleProfile>>(raw) }.getOrNull() ?: emptyList()
+    }
+
+    private fun decodeRigAvatar(raw: String?): RigAvatarSpec {
+        if (raw.isNullOrBlank()) return RigAvatarSpec()
+        return runCatching { json.decodeFromString<RigAvatarSpec>(raw) }.getOrNull() ?: RigAvatarSpec()
     }
 }

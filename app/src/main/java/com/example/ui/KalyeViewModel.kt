@@ -7,6 +7,7 @@ import com.example.data.model.DistanceUnit
 import com.example.data.model.GeoUtils
 import com.example.data.model.MapLayerType
 import com.example.data.model.OfflineRegion
+import com.example.data.model.RigAvatarSpec
 import com.example.data.model.RoutePoint
 import com.example.data.model.StopType
 import com.example.data.model.TagCategory
@@ -16,6 +17,7 @@ import com.example.data.model.TripSummary
 import com.example.data.model.UserPreferences
 import com.example.data.model.VehicleBodyStyle
 import com.example.data.model.VehicleProfile
+import com.example.data.model.VehicleRigGear
 import com.example.data.model.VehicleStats
 import com.example.data.repository.KalyeRepository
 import com.example.location.GpsSignalStatus
@@ -29,6 +31,7 @@ import com.example.update.AppUpdateStatus
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -155,6 +158,8 @@ class KalyeViewModel(
     private val _updateStatus = MutableStateFlow<AppUpdateStatus>(AppUpdateStatus.Idle)
     val updateStatus: StateFlow<AppUpdateStatus> = _updateStatus.asStateFlow()
 
+    private var locationCollectionJob: Job? = null
+
     val updateRepoSlug: String
         get() = updateChecker.repoSlug
 
@@ -230,10 +235,13 @@ class KalyeViewModel(
     fun onLocationPermissionResult(granted: Boolean) {
         _locationPermissionGranted.value = granted
         if (!granted) {
+            locationCollectionJob?.cancel()
+            locationCollectionJob = null
             _liveTelemetry.value = LiveTelemetry(point = null, status = GpsSignalStatus.PERMISSION_NEEDED)
             return
         }
-        viewModelScope.launch {
+        if (locationCollectionJob?.isActive == true) return
+        locationCollectionJob = viewModelScope.launch {
             locationTracker.observeHighAccuracyLocation().collect { telemetry ->
                 _liveTelemetry.value = telemetry
             }
@@ -442,7 +450,8 @@ class KalyeViewModel(
         drivetrain: String,
         fuelType: String,
         accentColorHex: Long,
-        startingOdometerKm: Double = 0.0
+        startingOdometerKm: Double = 0.0,
+        rigGear: VehicleRigGear = VehicleRigGear.STOCK
     ) {
         val cleanName = nickname.trim().ifBlank { bodyStyle.label }
         val cleanModel = makeModel.trim().ifBlank { "${bodyStyle.label} • $drivetrain" }
@@ -454,7 +463,8 @@ class KalyeViewModel(
             drivetrain = drivetrain,
             fuelType = fuelType,
             accentColorHex = accentColorHex,
-            startingOdometerKm = startingOdometerKm.coerceAtLeast(0.0)
+            startingOdometerKm = startingOdometerKm.coerceAtLeast(0.0),
+            rigGear = rigGear
         )
         viewModelScope.launch {
             repository.addVehicle(newVehicle)
@@ -470,7 +480,8 @@ class KalyeViewModel(
         drivetrain: String,
         fuelType: String,
         accentColorHex: Long,
-        startingOdometerKm: Double
+        startingOdometerKm: Double,
+        rigGear: VehicleRigGear = VehicleRigGear.STOCK
     ) {
         val cleanName = nickname.trim().ifBlank { bodyStyle.label }
         val cleanModel = makeModel.trim().ifBlank { "${bodyStyle.label} • $drivetrain" }
@@ -482,7 +493,8 @@ class KalyeViewModel(
             drivetrain = drivetrain,
             fuelType = fuelType,
             accentColorHex = accentColorHex,
-            startingOdometerKm = startingOdometerKm.coerceAtLeast(0.0)
+            startingOdometerKm = startingOdometerKm.coerceAtLeast(0.0),
+            rigGear = rigGear
         )
         viewModelScope.launch {
             repository.updateVehicle(updated)
@@ -497,7 +509,8 @@ class KalyeViewModel(
         drivetrain: String,
         fuelType: String,
         accentColorHex: Long,
-        startingOdometerKm: Double
+        startingOdometerKm: Double,
+        rigGear: VehicleRigGear = VehicleRigGear.STOCK
     ) {
         val cleanName = nickname.trim().ifBlank { bodyStyle.label }
         val cleanModel = makeModel.trim().ifBlank { "${bodyStyle.label} • $drivetrain" }
@@ -509,7 +522,8 @@ class KalyeViewModel(
             drivetrain = drivetrain,
             fuelType = fuelType,
             accentColorHex = accentColorHex,
-            startingOdometerKm = startingOdometerKm.coerceAtLeast(0.0)
+            startingOdometerKm = startingOdometerKm.coerceAtLeast(0.0),
+            rigGear = rigGear
         )
         viewModelScope.launch {
             repository.addVehicle(newVehicle)
@@ -521,6 +535,13 @@ class KalyeViewModel(
     fun skipOnboarding() {
         viewModelScope.launch {
             repository.setGarageOnboardingDismissed(true)
+        }
+    }
+
+    fun updateRigAvatar(spec: RigAvatarSpec) {
+        viewModelScope.launch {
+            repository.updateRigAvatar(spec)
+            _syncMessage.value = "Rig avatar updated"
         }
     }
 

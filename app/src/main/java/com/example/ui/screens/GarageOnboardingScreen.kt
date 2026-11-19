@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.DistanceUnit
 import com.example.data.model.VehicleBodyStyle
+import com.example.data.model.VehicleRigGear
 import com.example.ui.KalyeViewModel
 import com.example.ui.components.VehicleRigIllustration
 
@@ -81,6 +82,7 @@ fun GarageOnboardingScreen(
     var drivetrain by remember { mutableStateOf("4x4") }
     var fuelType by remember { mutableStateOf("Diesel") }
     var colorHex by remember { mutableLongStateOf(0xFF4B5D38L) }
+    var rigGear by remember { mutableStateOf(VehicleRigGear.STOCK) }
 
     val colorSwatches = remember {
         listOf(
@@ -185,9 +187,10 @@ fun GarageOnboardingScreen(
                         VehicleRigIllustration(
                             bodyStyle = bodyStyle,
                             accentColor = Color(colorHex),
+                            rigGear = rigGear,
                             modifier = Modifier
-                                .fillMaxWidth(0.75f)
-                                .height(104.dp)
+                                .fillMaxWidth(0.76f)
+                                .height(106.dp)
                         )
                     }
                 }
@@ -234,9 +237,9 @@ fun GarageOnboardingScreen(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     VehicleBodyStyle.entries.forEach { style ->
                         FilterChip(
@@ -244,6 +247,25 @@ fun GarageOnboardingScreen(
                             onClick = { bodyStyle = style },
                             label = { Text(style.label) },
                             modifier = Modifier.testTag("onboarding_style_${style.name.lowercase()}")
+                        )
+                    }
+                }
+
+                Text(
+                    text = "RIG GEAR & TRIM",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    VehicleRigGear.entries.forEach { gear ->
+                        FilterChip(
+                            selected = rigGear == gear,
+                            onClick = { rigGear = gear },
+                            label = { Text(gear.label) },
+                            modifier = Modifier.testTag("onboarding_gear_${gear.name.lowercase()}")
                         )
                     }
                 }
@@ -318,7 +340,8 @@ fun GarageOnboardingScreen(
                             drivetrain = drivetrain,
                             fuelType = fuelType,
                             accentColorHex = colorHex,
-                            startingOdometerKm = odoKm
+                            startingOdometerKm = odoKm,
+                            rigGear = rigGear
                         )
                         onDone()
                     },

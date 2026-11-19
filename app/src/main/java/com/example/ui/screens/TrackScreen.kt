@@ -7,9 +7,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -77,6 +74,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -85,7 +83,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -103,7 +103,9 @@ import com.example.location.LiveTelemetry
 import com.example.maps.KalyeMapCanvas
 import com.example.ui.KalyeViewModel
 import com.example.ui.components.LogStopSheet
+import com.example.ui.components.RigAvatarBadge
 import com.example.ui.components.VehicleRigIllustration
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -360,6 +362,20 @@ fun TrackScreen(
                         }
                     }
 
+                    if (activeTrip == null) {
+                        val avatarVehicle = vehicles.firstOrNull { it.id == preferences.rigAvatar.vehicleId }
+                            ?: activeVehicle
+                        if (avatarVehicle != null) {
+                            RigAvatarBadge(
+                                vehicle = avatarVehicle,
+                                spec = preferences.rigAvatar,
+                                size = 48.dp,
+                                onClick = onOpenGarage,
+                                modifier = Modifier.testTag("track_rig_avatar_badge")
+                            )
+                        }
+                    }
+
                     Surface(
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
@@ -437,23 +453,24 @@ fun TrackScreen(
                     }
                 }
 
+                // Key ONLY on whether a trip is active (never on activeTrip object!)
+                // so GPS/Room updates never crossfade/flicker the active telemetry card.
                 AnimatedContent(
-                    targetState = activeTrip,
+                    targetState = activeTrip != null,
                     transitionSpec = {
                         fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(160))
                     },
                     label = "cockpit_state"
-                ) { trip ->
-                    if (trip == null) {
+                ) { isTracking ->
+                    val trip = activeTrip
+                    if (!isTracking || trip == null) {
                         // IDLE: Active Rig Pill (or Empty-Garage CTA) + Category tag selector + Giant Start Ride button
                         Surface(
                             shape = RoundedCornerShape(24.dp),
                             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                             tonalElevation = 2.dp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(
                                 modifier = Modifier.padding(16.dp),
@@ -503,25 +520,30 @@ fun TrackScreen(
                                         }
                                     } else {
                                         Row(
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             VehicleRigIllustration(
                                                 bodyStyle = currentRig.bodyStyle,
                                                 accentColor = Color(currentRig.accentColorHex),
-                                                modifier = Modifier.size(width = 48.dp, height = 30.dp)
+                                                rigGear = currentRig.rigGear,
+                                                modifier = Modifier.size(width = 56.dp, height = 34.dp)
                                             )
                                             Spacer(modifier = Modifier.width(10.dp))
                                             Column(modifier = Modifier.weight(1f)) {
                                                 Text(
                                                     text = currentRig.nickname,
                                                     style = MaterialTheme.typography.titleSmall,
-                                                    color = MaterialTheme.colorScheme.onSurface
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                                 Text(
-                                                    text = "${currentRig.drivetrain} • ${currentRig.fuelType}",
+                                                    text = "${currentRig.bodyStyle.label} • ${currentRig.fuelType}",
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
                                             Surface(
@@ -532,7 +554,7 @@ fun TrackScreen(
                                                     text = "Active Rig",
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                                 )
                                             }
                                             Spacer(modifier = Modifier.width(4.dp))
@@ -594,7 +616,7 @@ fun TrackScreen(
                             }
                         }
                     } else {
-                        // ACTIVE RIDE COCKPIT: Oversized telemetry + auto-pause indicator + speed + stop logging + Pause/Finish
+                        // ACTIVE RIDE COCKPIT: Flicker-free card + isolated 1-second live timer
                         val rigLabel = (activeVehicle?.nickname ?: trip.vehicleName).ifBlank { "Location Track" }
                         val liveSpeedKmh = ((telemetry.point?.speedMps ?: 0f) * 3.6).coerceAtLeast(0.0)
                         Surface(
@@ -602,9 +624,7 @@ fun TrackScreen(
                             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                             tonalElevation = 4.dp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(
                                 modifier = Modifier.padding(16.dp),
@@ -615,7 +635,7 @@ fun TrackScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column {
+                                    Column(modifier = Modifier.weight(1f)) {
                                         val statusLabel = when {
                                             trip.isPaused -> "PAUSED • ${rigLabel.uppercase()}"
                                             trip.isAutoPaused -> "AUTO-PAUSED • STATIONARY"
@@ -629,25 +649,32 @@ fun TrackScreen(
                                             text = statusLabel,
                                             style = MaterialTheme.typography.labelSmall,
                                             color = statusColor,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.testTag("active_ride_status_label")
                                         )
                                         Text(
                                             text = GeoUtils.formatDistance(trip.distanceMeters, preferences.distanceUnit),
                                             style = MaterialTheme.typography.displayMedium.copy(fontFeatureSettings = "tnum"),
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1
                                         )
                                     }
 
+                                    Spacer(modifier = Modifier.width(8.dp))
+
                                     Column(horizontalAlignment = Alignment.End) {
-                                        Text(
-                                            text = GeoUtils.formatMovingTime(trip.effectiveMovingMillis),
-                                            style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
-                                            color = MaterialTheme.colorScheme.onSurface
+                                        LiveMovingTimerText(
+                                            trip = trip,
+                                            style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum"),
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.testTag("active_moving_timer")
                                         )
                                         Text(
                                             text = "${GeoUtils.formatSpeed(liveSpeedKmh, preferences.distanceUnit)} • +${GeoUtils.formatElevation(trip.elevationGainMeters, preferences.distanceUnit)}",
-                                            style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1
                                         )
                                     }
                                 }
@@ -882,13 +909,14 @@ fun TrackScreen(
                             VehicleRigIllustration(
                                 bodyStyle = veh.bodyStyle,
                                 accentColor = Color(veh.accentColorHex),
-                                modifier = Modifier.size(width = 58.dp, height = 38.dp)
+                                rigGear = veh.rigGear,
+                                modifier = Modifier.size(width = 62.dp, height = 38.dp)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(veh.nickname, style = MaterialTheme.typography.titleMedium)
                                 Text(
-                                    text = "${veh.makeModel} • ${veh.fuelType}",
+                                    text = "${veh.makeModel} • ${veh.bodyStyle.label}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -1007,8 +1035,8 @@ private fun StealthTrackingHud(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("MOVING TIME", style = MaterialTheme.typography.labelSmall, color = oledMuted)
-                    Text(
-                        text = GeoUtils.formatMovingTime(trip.effectiveMovingMillis),
+                    LiveMovingTimerText(
+                        trip = trip,
                         style = MaterialTheme.typography.headlineLarge.copy(fontFeatureSettings = "tnum"),
                         color = oledText
                     )
@@ -1159,6 +1187,33 @@ private fun QuickLogChip(
             )
         }
     }
+}
+
+@Composable
+private fun LiveMovingTimerText(
+    trip: TripSummary,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    var nowMillis by remember(trip.id) { mutableLongStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(trip.id, trip.isActive, trip.isPaused, trip.isAutoPaused) {
+        nowMillis = System.currentTimeMillis()
+        while (trip.isActive && !trip.isPaused && !trip.isAutoPaused) {
+            delay(1000L)
+            nowMillis = System.currentTimeMillis()
+        }
+    }
+
+    val movingMillis = GeoUtils.computeLiveMovingMillis(trip, nowMillis)
+    Text(
+        text = GeoUtils.formatMovingTime(movingMillis),
+        style = style,
+        color = color,
+        maxLines = 1,
+        modifier = modifier
+    )
 }
 
 private fun buildDefaultTripTitle(category: String): String {

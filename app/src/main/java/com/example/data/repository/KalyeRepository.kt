@@ -14,6 +14,7 @@ import com.example.data.model.DistanceUnit
 import com.example.data.model.GeoUtils
 import com.example.data.model.MapLayerType
 import com.example.data.model.OfflineRegion
+import com.example.data.model.RigAvatarSpec
 import com.example.data.model.RoutePoint
 import com.example.data.model.StopType
 import com.example.data.model.TagCategory
@@ -268,10 +269,18 @@ class KalyeRepository(
     suspend fun setTripPaused(tripId: String, paused: Boolean) {
         val existing = dao.getTripById(tripId) ?: return
         val now = System.currentTimeMillis()
+        val updatedMoving = if (paused && !existing.pausedFlag && !existing.autoPausedFlag) {
+            val anchor = maxOf(existing.endTimeMillis, existing.startTimeMillis)
+            val tailDelta = (now - anchor).coerceIn(0L, AutoPauseEvaluator.MAX_SEGMENT_GAP_MILLIS)
+            existing.movingDurationMillis + tailDelta
+        } else {
+            existing.movingDurationMillis
+        }
         dao.upsertTrip(
             existing.copy(
                 pausedFlag = paused,
                 autoPausedFlag = false,
+                movingDurationMillis = updatedMoving,
                 lastMovementTimeMillis = if (!paused) now else existing.lastMovementTimeMillis,
                 endTimeMillis = now,
                 updatedAtMillis = now
@@ -287,25 +296,23 @@ class KalyeRepository(
         val lastPoint = existingPoints.lastOrNull()
 
         var deltaDistance = 0.0
-        var deltaGain = 0.0
-        var deltaLoss = 0.0
-
         if (lastPoint != null) {
             deltaDistance = GeoUtils.haversineMeters(
                 lastPoint.latitude, lastPoint.longitude,
                 point.latitude, point.longitude
             )
-            val eleDiff = point.altitudeMeters - lastPoint.altitudeMeters
-            // Smooth GPS altitude noise (threshold 2.0m)
-            if (eleDiff >= 2.0) deltaGain = eleDiff
-            else if (eleDiff <= -2.0) deltaLoss = -eleDiff
         }
+
+        val lastSampleAnchor = maxOf(
+            trip.endTimeMillis,
+            lastPoint?.timestampMillis ?: trip.startTimeMillis
+        )
 
         val eval = AutoPauseEvaluator.evaluate(
             currentMovingMillis = trip.movingDurationMillis,
             wasAutoPaused = trip.autoPausedFlag,
             lastMovementTimeMillis = trip.lastMovementTimeMillis.takeIf { it > 0L } ?: trip.startTimeMillis,
-            lastSampleTimeMillis = lastPoint?.timestampMillis ?: trip.startTimeMillis,
+            lastSampleTimeMillis = lastSampleAnchor,
             deltaDistanceMeters = deltaDistance,
             speedMps = point.speedMps,
             sampleTimeMillis = point.timestampMillis
@@ -316,7 +323,11 @@ class KalyeRepository(
             (point.timestampMillis - lastPoint.timestampMillis) >= 30_000L
 
         if (!shouldInsertPoint) {
-            if (eval.isAutoPaused != trip.autoPausedFlag || eval.movingDurationMillis != trip.movingDurationMillis) {
+            val timeAdvance = point.timestampMillis - trip.endTimeMillis
+            if (eval.isAutoPaused != trip.autoPausedFlag ||
+                eval.movingDurationMillis != trip.movingDurationMillis ||
+                timeAdvance >= 2000L
+            ) {
                 dao.upsertTrip(
                     trip.copy(
                         endTimeMillis = maxOf(trip.endTimeMillis, point.timestampMillis),
@@ -346,18 +357,17 @@ class KalyeRepository(
 
         val effectiveDistanceDelta = if (eval.isMovingSample || deltaDistance >= 4.0) deltaDistance else 0.0
         val newCount = existingPoints.size + 1
-        val newMaxEle = if (existingPoints.isEmpty()) point.altitudeMeters else maxOf(trip.maxElevationMeters, point.altitudeMeters)
-        val newMinEle = if (existingPoints.isEmpty()) point.altitudeMeters else minOf(trip.minElevationMeters, point.altitudeMeters)
         val speedKmh = if (eval.isAutoPaused) 0.0 else (point.speedMps * 3.6).coerceAtLeast(0.0)
 
         val updatedPoints = existingPoints.map { it.toDomain() } + point
+        val eleStats = GeoUtils.computeElevationStats(updatedPoints)
         val updatedTrip = trip.copy(
             endTimeMillis = maxOf(trip.endTimeMillis, point.timestampMillis),
             distanceMeters = trip.distanceMeters + effectiveDistanceDelta,
-            elevationGainMeters = trip.elevationGainMeters + deltaGain,
-            elevationLossMeters = trip.elevationLossMeters + deltaLoss,
-            maxElevationMeters = newMaxEle,
-            minElevationMeters = newMinEle,
+            elevationGainMeters = eleStats.gainMeters,
+            elevationLossMeters = eleStats.lossMeters,
+            maxElevationMeters = eleStats.maxMeters,
+            minElevationMeters = eleStats.minMeters,
             maxSpeedKmh = maxOf(trip.maxSpeedKmh, speedKmh),
             pointCount = newCount,
             routePolyline = GeoUtils.encodeRoutePoints(updatedPoints),
@@ -375,9 +385,11 @@ class KalyeRepository(
         val trip = dao.getTripById(tripId) ?: return Result.failure(IllegalStateException("Trip not found"))
         val points = dao.getTrackPoints(tripId).map { it.toDomain() }
         val polyline = GeoUtils.encodeRoutePoints(points)
+        val eleStats = GeoUtils.computeElevationStats(points)
         val now = System.currentTimeMillis()
-        val finalMovingMillis = if (trip.movingDurationMillis > 0L) {
-            trip.movingDurationMillis
+        val liveMoving = GeoUtils.computeLiveMovingMillis(trip.toDomain(), now)
+        val finalMovingMillis = if (liveMoving > 0L) {
+            liveMoving
         } else {
             (maxOf(trip.endTimeMillis, now) - trip.startTimeMillis).coerceAtLeast(0L)
         }
@@ -385,6 +397,10 @@ class KalyeRepository(
             title = finalTitle?.takeIf { it.isNotBlank() } ?: trip.title,
             notes = notes ?: trip.notes,
             endTimeMillis = maxOf(trip.endTimeMillis, now),
+            elevationGainMeters = if (points.isNotEmpty()) eleStats.gainMeters else trip.elevationGainMeters,
+            elevationLossMeters = if (points.isNotEmpty()) eleStats.lossMeters else trip.elevationLossMeters,
+            maxElevationMeters = if (points.isNotEmpty()) eleStats.maxMeters else trip.maxElevationMeters,
+            minElevationMeters = if (points.isNotEmpty()) eleStats.minMeters else trip.minElevationMeters,
             routePolyline = polyline,
             pointCount = points.size,
             movingDurationMillis = finalMovingMillis,
@@ -648,6 +664,10 @@ class KalyeRepository(
 
     suspend fun setStealthModeEnabled(enabled: Boolean) {
         prefsRepo.setStealthModeEnabled(enabled)
+    }
+
+    suspend fun updateRigAvatar(spec: RigAvatarSpec) {
+        prefsRepo.setRigAvatar(spec)
     }
 
     suspend fun pullRemotePreferencesIfAvailable() {

@@ -17,6 +17,7 @@ import com.example.data.model.TripSummary
 import com.example.data.model.UserPreferences
 import com.example.data.model.VehicleBodyStyle
 import com.example.data.model.VehicleProfile
+import com.example.data.model.VehicleRigGear
 import com.example.data.model.toCreateMap
 import com.example.data.model.toUpdateMap
 import com.google.firebase.Firebase
@@ -124,7 +125,8 @@ class KalyeFirestoreDataSource(
                             drivetrain = dto.drivetrain,
                             fuelType = dto.fuelType,
                             accentColorHex = dto.accentColorHex,
-                            startingOdometerKm = dto.startingOdometerKm
+                            startingOdometerKm = dto.startingOdometerKm,
+                            rigGear = VehicleRigGear.safeFrom(dto.rigGear)
                         )
                     }
                 }
