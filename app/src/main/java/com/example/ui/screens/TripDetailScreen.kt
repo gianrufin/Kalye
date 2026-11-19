@@ -126,7 +126,11 @@ fun TripDetailScreen(
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = currentTrip.categoryTag.uppercase(),
+                    text = if (currentTrip.vehicleName.isNotBlank()) {
+                        "${currentTrip.categoryTag.uppercase()} • ${currentTrip.vehicleName.uppercase()}"
+                    } else {
+                        currentTrip.categoryTag.uppercase()
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -204,7 +208,7 @@ fun TripDetailScreen(
                 ) {
                     MetricTile(
                         label = "MOVING TIME",
-                        value = GeoUtils.formatMovingTime(currentTrip.durationMillis),
+                        value = GeoUtils.formatMovingTime(currentTrip.effectiveMovingMillis),
                         modifier = Modifier.weight(1f)
                     )
                     MetricTile(
@@ -324,14 +328,37 @@ fun TripDetailScreen(
                                 )
                             }
                         }
-                        if (currentTrip.totalFuelLiters > 0 && currentTrip.distanceMeters > 0) {
-                            val distKm = currentTrip.distanceMeters / 1000.0
-                            val eff = distKm / currentTrip.totalFuelLiters
-                            Text(
-                                text = "Fuel efficiency: ${String.format(Locale.US, "%.1f", eff)} km/L",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.secondary
-                            )
+                        val effLabel = GeoUtils.formatFuelEfficiency(
+                            currentTrip.distanceMeters,
+                            currentTrip.totalFuelLiters,
+                            preferences.distanceUnit
+                        )
+                        val costPerDist = GeoUtils.formatCostPerDistance(
+                            currentTrip.totalCost,
+                            currentTrip.distanceMeters,
+                            currentTrip.currencyCode,
+                            preferences.distanceUnit
+                        )
+                        if (effLabel != null || costPerDist != null) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                if (effLabel != null) {
+                                    Text(
+                                        text = "Fuel efficiency: $effLabel",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
+                                if (costPerDist != null) {
+                                    Text(
+                                        text = "Trip rate: $costPerDist",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
                         }
                         if (currentTrip.notes.isNotBlank()) {
                             Text(

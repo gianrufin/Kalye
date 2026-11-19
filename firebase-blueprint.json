@@ -55,6 +55,9 @@
         "currencyCode": { "type": "string" },
         "routePolyline": { "type": "string" },
         "pointCount": { "type": "integer" },
+        "vehicleId": { "type": "string" },
+        "vehicleName": { "type": "string" },
+        "movingDurationMillis": { "type": "integer" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
@@ -64,6 +67,27 @@
         "maxElevationMeters", "minElevationMeters", "maxSpeedKmh",
         "totalFuelCost", "totalFerryCost", "totalOtherCost", "totalFuelLiters",
         "currencyCode", "routePolyline", "pointCount", "createdAt", "updatedAt"
+      ]
+    },
+    "Vehicle": {
+      "title": "Vehicle",
+      "description": "User garage rig profile with starting odometer and drivetrain metadata",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "nickname": { "type": "string" },
+        "makeModel": { "type": "string" },
+        "bodyStyle": { "type": "string", "enum": ["SUV_4X4", "PICKUP", "SEDAN", "VAN", "MOTO"] },
+        "drivetrain": { "type": "string" },
+        "fuelType": { "type": "string" },
+        "accentColorHex": { "type": "integer" },
+        "startingOdometerKm": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId", "nickname", "makeModel", "bodyStyle", "drivetrain",
+        "fuelType", "accentColorHex", "startingOdometerKm", "createdAt", "updatedAt"
       ]
     },
     "TripStop": {
@@ -103,6 +127,10 @@
     "/users/{userId}/categories/{categoryId}": {
       "schema": { "$ref": "#/entities/TagCategory" },
       "description": "User custom ride tag categories"
+    },
+    "/users/{userId}/vehicles/{vehicleId}": {
+      "schema": { "$ref": "#/entities/Vehicle" },
+      "description": "User garage vehicle rigs"
     },
     "/users/{userId}/trips/{tripId}": {
       "schema": { "$ref": "#/entities/Trip" },

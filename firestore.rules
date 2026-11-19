@@ -46,6 +46,21 @@ service cloud.firestore {
              data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
 
+    function isValidVehicle(data, userId) {
+      return data.userId == userId &&
+             data.nickname is string && data.nickname.size() >= 1 && data.nickname.size() <= 60 &&
+             data.makeModel is string && data.makeModel.size() >= 1 && data.makeModel.size() <= 100 &&
+             data.bodyStyle is string &&
+             (data.bodyStyle == 'SUV_4X4' || data.bodyStyle == 'PICKUP' || data.bodyStyle == 'SEDAN' ||
+              data.bodyStyle == 'VAN' || data.bodyStyle == 'MOTO') &&
+             data.drivetrain is string && data.drivetrain.size() >= 1 && data.drivetrain.size() <= 20 &&
+             data.fuelType is string && data.fuelType.size() >= 1 && data.fuelType.size() <= 24 &&
+             data.accentColorHex is int &&
+             data.startingOdometerKm is number && data.startingOdometerKm >= 0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
     function isValidTrip(data, userId) {
       return data.userId == userId &&
              data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
@@ -66,6 +81,9 @@ service cloud.firestore {
              data.currencyCode is string && data.currencyCode.size() >= 1 && data.currencyCode.size() <= 6 &&
              data.routePolyline is string && data.routePolyline.size() <= 150000 &&
              data.pointCount is int && data.pointCount >= 0 &&
+             (!('vehicleId' in data) || (data.vehicleId is string && data.vehicleId.size() <= 128)) &&
+             (!('vehicleName' in data) || (data.vehicleName is string && data.vehicleName.size() <= 80)) &&
+             (!('movingDurationMillis' in data) || (data.movingDurationMillis is int && data.movingDurationMillis >= 0)) &&
              data.createdAt is timestamp && data.createdAt <= request.time &&
              data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
@@ -124,6 +142,32 @@ service cloud.firestore {
       allow delete: if isOwner(userId) && isValidId(categoryId);
     }
 
+    match /users/{userId}/vehicles/{vehicleId} {
+      allow get: if isOwner(userId) && isValidId(vehicleId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) &&
+                       isValidId(vehicleId) &&
+                       incoming().keys().hasAll([
+                         'userId', 'nickname', 'makeModel', 'bodyStyle', 'drivetrain',
+                         'fuelType', 'accentColorHex', 'startingOdometerKm', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'nickname', 'makeModel', 'bodyStyle', 'drivetrain',
+                         'fuelType', 'accentColorHex', 'startingOdometerKm', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidVehicle(incoming(), userId);
+      allow update: if isOwner(userId) &&
+                       isValidId(vehicleId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidVehicle(incoming(), userId) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'nickname', 'makeModel', 'bodyStyle', 'drivetrain',
+                         'fuelType', 'accentColorHex', 'startingOdometerKm', 'updatedAt'
+                       ]);
+      allow delete: if isOwner(userId) && isValidId(vehicleId);
+    }
+
     match /users/{userId}/trips/{tripId} {
       allow get: if isOwner(userId) && isValidId(tripId);
       allow list: if isOwner(userId);
@@ -141,7 +185,8 @@ service cloud.firestore {
                          'distanceMeters', 'elevationGainMeters', 'elevationLossMeters',
                          'maxElevationMeters', 'minElevationMeters', 'maxSpeedKmh',
                          'totalFuelCost', 'totalFerryCost', 'totalOtherCost', 'totalFuelLiters',
-                         'currencyCode', 'routePolyline', 'pointCount', 'createdAt', 'updatedAt'
+                         'currencyCode', 'routePolyline', 'pointCount',
+                         'vehicleId', 'vehicleName', 'movingDurationMillis', 'createdAt', 'updatedAt'
                        ]) &&
                        isValidTrip(incoming(), userId);
       allow update: if isOwner(userId) &&
@@ -154,7 +199,8 @@ service cloud.firestore {
                          'distanceMeters', 'elevationGainMeters', 'elevationLossMeters',
                          'maxElevationMeters', 'minElevationMeters', 'maxSpeedKmh',
                          'totalFuelCost', 'totalFerryCost', 'totalOtherCost', 'totalFuelLiters',
-                         'currencyCode', 'routePolyline', 'pointCount', 'updatedAt'
+                         'currencyCode', 'routePolyline', 'pointCount',
+                         'vehicleId', 'vehicleName', 'movingDurationMillis', 'updatedAt'
                        ]);
       allow delete: if isOwner(userId) && isValidId(tripId);
     }

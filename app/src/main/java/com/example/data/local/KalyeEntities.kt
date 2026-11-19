@@ -33,6 +33,11 @@ data class TripEntity(
     val currencyCode: String,
     val routePolyline: String,
     val pointCount: Int,
+    val vehicleId: String = "",
+    val vehicleName: String = "",
+    val movingDurationMillis: Long = 0L,
+    val autoPausedFlag: Boolean = false,
+    val lastMovementTimeMillis: Long = 0L,
     val activeFlag: Boolean,
     val pausedFlag: Boolean,
     val syncedFlag: Boolean,
@@ -59,8 +64,12 @@ data class TripEntity(
         currencyCode = currencyCode,
         routePolyline = routePolyline,
         pointCount = pointCount,
+        vehicleId = vehicleId,
+        vehicleName = vehicleName,
+        movingDurationMillis = movingDurationMillis,
         isActive = activeFlag,
         isPaused = pausedFlag,
+        isAutoPaused = autoPausedFlag,
         isSynced = syncedFlag
     )
 }

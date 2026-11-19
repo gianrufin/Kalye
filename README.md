@@ -36,15 +36,14 @@
 This repository includes an automated release workflow at `.github/workflows/release-apk.yml`.
 
 ### Triggering a New Version Release
-1. Update `versionCode` and `versionName` in `app/build.gradle.kts` (optional).
-2. Create and push a version tag:
+1. Either push a semantic version tag (`v1.0.1`, `v1.0.2`, ...):
    ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
+   git tag v1.0.2
+   git push origin v1.0.2
    ```
-3. GitHub Actions will automatically run `:app:testDebugUnitTest`, build the APK, and publish a GitHub Release with the `.apk` attached so it appears at the [**Download link**](https://github.com/gianrufin/Kalye/releases/latest) above.
-
-You can also trigger a release manually from the **Actions → Release Android APK → Run workflow** button on GitHub.
+   Or trigger **Actions → Release Android APK → Run workflow** with `tag_name = auto` to automatically bump the patch version from the latest `v*` tag.
+2. GitHub Actions automatically injects the release `versionName` and monotonic `versionCode` into Gradle, runs `:app:testDebugUnitTest`, builds the APK, and publishes a GitHub Release at the [**Download link**](https://github.com/gianrufin/Kalye/releases/latest) above.
+3. Users can tap **Settings → Check for Updates** inside the app to scan the repository for newer versions and open the release APK download.
 
 ### Optional: Firebase & Consistent Signing Secrets
 - **Firebase & Google Sign-In** (if `app/google-services.json` was excluded when pushing to GitHub):

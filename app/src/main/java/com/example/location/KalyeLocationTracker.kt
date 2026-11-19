@@ -31,9 +31,10 @@ class KalyeLocationTracker(context: Context) {
 
     @SuppressLint("MissingPermission")
     fun observeHighAccuracyLocation(): Flow<LiveTelemetry> = callbackFlow {
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1500L)
-            .setMinUpdateIntervalMillis(1000L)
-            .setMinUpdateDistanceMeters(2.0f)
+        // Piggyback cleanly alongside Google Maps / Android Auto without min-distance gating
+        // so stationary traffic auto-pause evaluates accurately at 25s.
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 2000L)
+            .setMinUpdateIntervalMillis(1200L)
             .setWaitForAccurateLocation(false)
             .build()
 

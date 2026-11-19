@@ -38,13 +38,15 @@ enum class ThemeMode(val label: String) {
 }
 
 enum class MapLayerType(val label: String) {
-    TOPO("Topo"),
-    STREET("Street"),
-    OFFLINE("Offline");
+    TOPO("Minimal Street"),
+    STREET("Minimal Street"),
+    OFFLINE("Offline Only");
 
     companion object {
-        fun safeFrom(raw: String?): MapLayerType =
-            entries.firstOrNull { it.name == raw } ?: TOPO
+        fun safeFrom(raw: String?): MapLayerType = when (raw) {
+            OFFLINE.name -> OFFLINE
+            else -> STREET
+        }
     }
 }
 
@@ -81,7 +83,12 @@ enum class VehicleBodyStyle(val label: String) {
     PICKUP("Overland Pickup"),
     SEDAN("Touring Sedan"),
     VAN("Camper Van"),
-    MOTO("Dual-Sport Moto")
+    MOTO("Dual-Sport Moto");
+
+    companion object {
+        fun safeFrom(raw: String?): VehicleBodyStyle =
+            entries.firstOrNull { it.name == raw } ?: SUV_4X4
+    }
 }
 
 @Serializable
@@ -93,62 +100,21 @@ data class VehicleProfile(
     val drivetrain: String = "4x4",
     val fuelType: String = "Diesel",
     val accentColorHex: Long = 0xFF4B5D38L,
-    val isPreset: Boolean = false
+    val startingOdometerKm: Double = 0.0
+)
+
+data class VehicleStats(
+    val vehicle: VehicleProfile,
+    val currentOdometerKm: Double,
+    val tripCount: Int,
+    val totalDistanceMeters: Double,
+    val totalFuelLiters: Double,
+    val totalFuelCost: Double,
+    val averageKmPerLiter: Double?
 )
 
 object VehicleGarageDefaults {
-    val presets: List<VehicleProfile> = listOf(
-        VehicleProfile(
-            id = "veh_olive_suv",
-            nickname = "Olive 4x4 SUV",
-            makeModel = "Toyota Fortuner • 4x4 SUV",
-            bodyStyle = VehicleBodyStyle.SUV_4X4,
-            drivetrain = "4x4",
-            fuelType = "Diesel",
-            accentColorHex = 0xFF4B5D38L,
-            isPreset = true
-        ),
-        VehicleProfile(
-            id = "veh_trail_pickup",
-            nickname = "Trail Pickup",
-            makeModel = "Ford Ranger • Overland Pickup",
-            bodyStyle = VehicleBodyStyle.PICKUP,
-            drivetrain = "4x4",
-            fuelType = "Diesel",
-            accentColorHex = 0xFFC8652BL,
-            isPreset = true
-        ),
-        VehicleProfile(
-            id = "veh_city_cruiser",
-            nickname = "City Cruiser",
-            makeModel = "Honda Civic • Touring Sedan",
-            bodyStyle = VehicleBodyStyle.SEDAN,
-            drivetrain = "FWD",
-            fuelType = "Gasoline",
-            accentColorHex = 0xFF5D6B78L,
-            isPreset = true
-        ),
-        VehicleProfile(
-            id = "veh_camper_van",
-            nickname = "Alpine Camper",
-            makeModel = "Sprinter AWD • Camper Van",
-            bodyStyle = VehicleBodyStyle.VAN,
-            drivetrain = "AWD",
-            fuelType = "Diesel",
-            accentColorHex = 0xFF2A5C48L,
-            isPreset = true
-        ),
-        VehicleProfile(
-            id = "veh_ridge_moto",
-            nickname = "Ridge Dual-Sport",
-            makeModel = "Africa Twin • Adventure Moto",
-            bodyStyle = VehicleBodyStyle.MOTO,
-            drivetrain = "2WD",
-            fuelType = "Gasoline",
-            accentColorHex = 0xFFB84A27L,
-            isPreset = true
-        )
-    )
+    val presets: List<VehicleProfile> = emptyList()
 }
 
 data class CurrencyOption(
@@ -178,9 +144,11 @@ data class UserPreferences(
     val distanceUnit: DistanceUnit = DistanceUnit.KM,
     val currencyCode: String = "PHP",
     val themeMode: ThemeMode = ThemeMode.LIGHT,
-    val mapLayer: MapLayerType = MapLayerType.TOPO,
+    val mapLayer: MapLayerType = MapLayerType.STREET,
     val activeTripId: String? = null,
-    val activeVehicleId: String = "veh_olive_suv"
+    val activeVehicleId: String? = null,
+    val garageOnboardingDismissed: Boolean = false,
+    val stealthModeEnabled: Boolean = false
 )
 
 data class RoutePoint(
@@ -214,8 +182,12 @@ data class TripSummary(
     val currencyCode: String,
     val routePolyline: String,
     val pointCount: Int,
+    val vehicleId: String = "",
+    val vehicleName: String = "",
+    val movingDurationMillis: Long = 0L,
     val isActive: Boolean = false,
     val isPaused: Boolean = false,
+    val isAutoPaused: Boolean = false,
     val isSynced: Boolean = false
 ) {
     val totalCost: Double
@@ -223,6 +195,13 @@ data class TripSummary(
 
     val durationMillis: Long
         get() = (endTimeMillis - startTimeMillis).coerceAtLeast(0L)
+
+    val effectiveMovingMillis: Long
+        get() = when {
+            movingDurationMillis > 0L -> movingDurationMillis
+            isActive -> 0L
+            else -> durationMillis
+        }
 }
 
 data class TripStop(
@@ -292,6 +271,25 @@ data class FirestoreTrip(
     val currencyCode: String = "PHP",
     val routePolyline: String = "",
     val pointCount: Long = 0L,
+    val vehicleId: String = "",
+    val vehicleName: String = "",
+    val movingDurationMillis: Long = 0L,
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class FirestoreVehicle(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val nickname: String = "",
+    val makeModel: String = "",
+    val bodyStyle: String = "SUV_4X4",
+    val drivetrain: String = "4x4",
+    val fuelType: String = "Diesel",
+    val accentColorHex: Long = 0xFF4B5D38L,
+    val startingOdometerKm: Double = 0.0,
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
 )
@@ -339,7 +337,7 @@ data class FirestorePreferences(
     val distanceUnit: String = "KM",
     val currencyCode: String = "PHP",
     val themeMode: String = "LIGHT",
-    val mapLayer: String = "TOPO",
+    val mapLayer: String = "STREET",
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
 )
@@ -364,6 +362,9 @@ fun TripSummary.toCreateMap(uid: String): Map<String, Any> = mapOf(
     "currencyCode" to currencyCode.take(6).ifBlank { "PHP" },
     "routePolyline" to routePolyline.take(150000),
     "pointCount" to pointCount.coerceAtLeast(0).toLong(),
+    "vehicleId" to vehicleId.take(128),
+    "vehicleName" to vehicleName.take(80),
+    "movingDurationMillis" to movingDurationMillis.coerceAtLeast(0L),
     "createdAt" to FieldValue.serverTimestamp(),
     "updatedAt" to FieldValue.serverTimestamp()
 )
@@ -386,6 +387,33 @@ fun TripSummary.toUpdateMap(): Map<String, Any> = mapOf(
     "currencyCode" to currencyCode.take(6).ifBlank { "PHP" },
     "routePolyline" to routePolyline.take(150000),
     "pointCount" to pointCount.coerceAtLeast(0).toLong(),
+    "vehicleId" to vehicleId.take(128),
+    "vehicleName" to vehicleName.take(80),
+    "movingDurationMillis" to movingDurationMillis.coerceAtLeast(0L),
+    "updatedAt" to FieldValue.serverTimestamp()
+)
+
+fun VehicleProfile.toCreateMap(uid: String): Map<String, Any> = mapOf(
+    "userId" to uid,
+    "nickname" to nickname.trim().take(60).ifBlank { bodyStyle.label },
+    "makeModel" to makeModel.trim().take(100).ifBlank { "${bodyStyle.label} • $drivetrain" },
+    "bodyStyle" to bodyStyle.name,
+    "drivetrain" to drivetrain.take(20).ifBlank { "4x4" },
+    "fuelType" to fuelType.take(24).ifBlank { "Diesel" },
+    "accentColorHex" to accentColorHex,
+    "startingOdometerKm" to startingOdometerKm.coerceAtLeast(0.0),
+    "createdAt" to FieldValue.serverTimestamp(),
+    "updatedAt" to FieldValue.serverTimestamp()
+)
+
+fun VehicleProfile.toUpdateMap(): Map<String, Any> = mapOf(
+    "nickname" to nickname.trim().take(60).ifBlank { bodyStyle.label },
+    "makeModel" to makeModel.trim().take(100).ifBlank { "${bodyStyle.label} • $drivetrain" },
+    "bodyStyle" to bodyStyle.name,
+    "drivetrain" to drivetrain.take(20).ifBlank { "4x4" },
+    "fuelType" to fuelType.take(24).ifBlank { "Diesel" },
+    "accentColorHex" to accentColorHex,
+    "startingOdometerKm" to startingOdometerKm.coerceAtLeast(0.0),
     "updatedAt" to FieldValue.serverTimestamp()
 )
 
@@ -526,6 +554,98 @@ object GeoUtils {
             String.format(Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
         } else {
             String.format(Locale.US, "%02d:%02d", minutes, seconds)
+        }
+    }
+
+    fun formatOdometer(km: Double, unit: DistanceUnit): String {
+        val value = when (unit) {
+            DistanceUnit.KM -> km
+            DistanceUnit.MI -> km * 0.621371
+        }
+        return String.format(Locale.US, "%,.0f %s", value.coerceAtLeast(0.0), unit.shortLabel)
+    }
+
+    fun computeKmPerLiter(distanceMeters: Double, fuelLiters: Double): Double? {
+        if (distanceMeters <= 0.0 || fuelLiters <= 0.0) return null
+        return (distanceMeters / 1000.0) / fuelLiters
+    }
+
+    fun formatFuelEfficiency(distanceMeters: Double, fuelLiters: Double, unit: DistanceUnit): String? {
+        val kmPerL = computeKmPerLiter(distanceMeters, fuelLiters) ?: return null
+        return when (unit) {
+            DistanceUnit.KM -> String.format(Locale.US, "%.1f km/L", kmPerL)
+            DistanceUnit.MI -> String.format(Locale.US, "%.1f mpg", kmPerL * 2.3521458)
+        }
+    }
+
+    fun formatCostPerDistance(
+        totalCost: Double,
+        distanceMeters: Double,
+        currencyCode: String,
+        unit: DistanceUnit
+    ): String? {
+        if (totalCost <= 0.0 || distanceMeters < 100.0) return null
+        val distUnits = when (unit) {
+            DistanceUnit.KM -> distanceMeters / 1000.0
+            DistanceUnit.MI -> distanceMeters / 1609.344
+        }
+        if (distUnits <= 0.0) return null
+        val symbol = CurrencyCatalog.symbolFor(currencyCode)
+        return String.format(Locale.US, "%s%.2f/%s", symbol, totalCost / distUnits, unit.shortLabel)
+    }
+}
+
+data class AutoPauseResult(
+    val movingDurationMillis: Long,
+    val isAutoPaused: Boolean,
+    val lastMovementTimeMillis: Long,
+    val isMovingSample: Boolean
+)
+
+object AutoPauseEvaluator {
+    const val STATIONARY_THRESHOLD_MPS = 0.7f
+    const val RESUME_THRESHOLD_MPS = 1.2f
+    const val AUTO_PAUSE_DELAY_MILLIS = 25_000L
+    const val MAX_SEGMENT_GAP_MILLIS = 30_000L
+
+    fun evaluate(
+        currentMovingMillis: Long,
+        wasAutoPaused: Boolean,
+        lastMovementTimeMillis: Long,
+        lastSampleTimeMillis: Long?,
+        deltaDistanceMeters: Double,
+        speedMps: Float,
+        sampleTimeMillis: Long
+    ): AutoPauseResult {
+        val rawDelta = if (lastSampleTimeMillis != null) {
+            (sampleTimeMillis - lastSampleTimeMillis).coerceAtLeast(0L)
+        } else 0L
+        val segDelta = rawDelta.coerceAtMost(MAX_SEGMENT_GAP_MILLIS)
+        val impliedSpeedMps = if (rawDelta > 0L) (deltaDistanceMeters / (rawDelta / 1000.0)).toFloat() else 0f
+
+        val movingNow = if (wasAutoPaused) {
+            speedMps >= RESUME_THRESHOLD_MPS || (deltaDistanceMeters >= 8.0 && impliedSpeedMps >= RESUME_THRESHOLD_MPS)
+        } else {
+            speedMps >= STATIONARY_THRESHOLD_MPS || deltaDistanceMeters >= 3.0
+        }
+
+        return if (movingNow) {
+            AutoPauseResult(
+                movingDurationMillis = currentMovingMillis + segDelta,
+                isAutoPaused = false,
+                lastMovementTimeMillis = sampleTimeMillis,
+                isMovingSample = true
+            )
+        } else {
+            val anchor = if (lastMovementTimeMillis > 0L) lastMovementTimeMillis else sampleTimeMillis
+            val stationaryMillis = (sampleTimeMillis - anchor).coerceAtLeast(0L)
+            val shouldPause = wasAutoPaused || stationaryMillis >= AUTO_PAUSE_DELAY_MILLIS
+            AutoPauseResult(
+                movingDurationMillis = if (shouldPause) currentMovingMillis else currentMovingMillis + segDelta,
+                isAutoPaused = shouldPause,
+                lastMovementTimeMillis = anchor,
+                isMovingSample = false
+            )
         }
     }
 }

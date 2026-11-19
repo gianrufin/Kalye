@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.model.DistanceUnit
+import com.example.data.model.GeoUtils
 import com.example.data.model.MapLayerType
 import com.example.data.model.OfflineRegion
 import com.example.data.model.RoutePoint
@@ -14,8 +15,8 @@ import com.example.data.model.TripStop
 import com.example.data.model.TripSummary
 import com.example.data.model.UserPreferences
 import com.example.data.model.VehicleBodyStyle
-import com.example.data.model.VehicleGarageDefaults
 import com.example.data.model.VehicleProfile
+import com.example.data.model.VehicleStats
 import com.example.data.repository.KalyeRepository
 import com.example.location.GpsSignalStatus
 import com.example.location.KalyeLocationTracker
@@ -23,6 +24,8 @@ import com.example.location.LiveTelemetry
 import com.example.maps.MapViewportBounds
 import com.example.maps.OfflineTileCacheManager
 import com.example.maps.RegionDownloadProgress
+import com.example.update.AppUpdateChecker
+import com.example.update.AppUpdateStatus
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -52,18 +55,26 @@ class KalyeViewModel(
     private val locationTracker: KalyeLocationTracker,
     val currentUserId: String,
     val userDisplayName: String?,
-    val userEmail: String?
+    val userEmail: String?,
+    private val updateChecker: AppUpdateChecker = AppUpdateChecker()
 ) : ViewModel() {
 
     val preferences: StateFlow<UserPreferences> = repository.preferencesFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), UserPreferences())
 
     val vehicles: StateFlow<List<VehicleProfile>> = repository.vehiclesFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), VehicleGarageDefaults.presets)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
-    val activeVehicle: StateFlow<VehicleProfile> = combine(vehicles, preferences) { list, prefs ->
-        list.firstOrNull { it.id == prefs.activeVehicleId } ?: list.first()
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), VehicleGarageDefaults.presets.first())
+    val activeVehicle: StateFlow<VehicleProfile?> = combine(vehicles, preferences) { list, prefs ->
+        list.firstOrNull { it.id == prefs.activeVehicleId } ?: list.firstOrNull()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), null)
+
+    val shouldShowOnboarding: StateFlow<Boolean> = combine(
+        repository.vehiclesFlow,
+        repository.preferencesFlow
+    ) { list, prefs ->
+        list.isEmpty() && !prefs.garageOnboardingDismissed
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), false)
 
     val tripsState: StateFlow<UiState<List<TripSummary>>> = repository.observeTrips(currentUserId)
         .map<List<TripSummary>, UiState<List<TripSummary>>> { UiState.Success(it) }
@@ -72,6 +83,30 @@ class KalyeViewModel(
             emit(UiState.Error(e.message ?: "Unable to load trips"))
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), UiState.Loading)
+
+    val vehicleStats: StateFlow<List<VehicleStats>> = combine(vehicles, tripsState) { vehs, tripsUi ->
+        val trips = (tripsUi as? UiState.Success)?.data ?: emptyList()
+        vehs.map { veh ->
+            val matching = trips.filter { it.vehicleId == veh.id }
+            val totalDistMeters = matching.sumOf { it.distanceMeters }
+            val totalLiters = matching.sumOf { it.totalFuelLiters }
+            val totalFuelCost = matching.sumOf { it.totalFuelCost }
+            val fuelTrips = matching.filter { it.totalFuelLiters > 0.0 && it.distanceMeters > 0.0 }
+            val avgKmPerL = GeoUtils.computeKmPerLiter(
+                fuelTrips.sumOf { it.distanceMeters },
+                fuelTrips.sumOf { it.totalFuelLiters }
+            )
+            VehicleStats(
+                vehicle = veh,
+                currentOdometerKm = veh.startingOdometerKm + (totalDistMeters / 1000.0),
+                tripCount = matching.size,
+                totalDistanceMeters = totalDistMeters,
+                totalFuelLiters = totalLiters,
+                totalFuelCost = totalFuelCost,
+                averageKmPerLiter = avgKmPerL
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
 
     val activeTrip: StateFlow<TripSummary?> = repository.observeActiveTrip(currentUserId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), null)
@@ -117,6 +152,12 @@ class KalyeViewModel(
     private val _locationPermissionGranted = MutableStateFlow(false)
     val locationPermissionGranted: StateFlow<Boolean> = _locationPermissionGranted.asStateFlow()
 
+    private val _updateStatus = MutableStateFlow<AppUpdateStatus>(AppUpdateStatus.Idle)
+    val updateStatus: StateFlow<AppUpdateStatus> = _updateStatus.asStateFlow()
+
+    val updateRepoSlug: String
+        get() = updateChecker.repoSlug
+
     init {
         viewModelScope.launch {
             repository.ensureDefaultCategories(currentUserId)
@@ -124,6 +165,7 @@ class KalyeViewModel(
             repository.syncPendingToCloud(currentUserId)
             refreshDiskUsage()
         }
+        checkForUpdates(silent = true)
         observeCloudStreams()
     }
 
@@ -170,6 +212,19 @@ class KalyeViewModel(
                     repository.mergeRemoteCategories(currentUserId, remoteCats)
                 }
         }
+        viewModelScope.launch {
+            repository.observeRemoteVehicles(currentUserId)
+                .catch { error ->
+                    val firestoreError = generateSequence(error) { it.cause }
+                        .filterIsInstance<FirebaseFirestoreException>()
+                        .firstOrNull()
+                    if (firestoreError == null && error is CancellationException) throw error
+                    Log.w(TAG, "Cloud vehicle sync warning", firestoreError ?: error)
+                }
+                .collect { remoteVehicles ->
+                    repository.mergeRemoteVehicles(remoteVehicles)
+                }
+        }
     }
 
     fun onLocationPermissionResult(granted: Boolean) {
@@ -199,11 +254,14 @@ class KalyeViewModel(
         onStarted: (TripSummary) -> Unit
     ) {
         viewModelScope.launch {
+            val rig = activeVehicle.value
             val trip = repository.startNewTrip(
                 userId = currentUserId,
                 title = title,
                 categoryTag = categoryTag,
-                currencyCode = preferences.value.currencyCode
+                currencyCode = preferences.value.currencyCode,
+                vehicleId = rig?.id.orEmpty(),
+                vehicleName = rig?.nickname.orEmpty()
             )
             // Seed initial point if GPS already locked
             _liveTelemetry.value.point?.let { initialPt ->
@@ -227,6 +285,9 @@ class KalyeViewModel(
     ) {
         viewModelScope.launch {
             val res = repository.finishTrip(trip.id, finalTitle, notes)
+            if (preferences.value.stealthModeEnabled) {
+                repository.setStealthModeEnabled(false)
+            }
             _syncMessage.value = if (res.isSuccess) {
                 "Ride saved & synced to cloud"
             } else {
@@ -349,6 +410,21 @@ class KalyeViewModel(
         }
     }
 
+    fun toggleOfflineCacheMode() {
+        val next = if (preferences.value.mapLayer == MapLayerType.OFFLINE) {
+            MapLayerType.STREET
+        } else {
+            MapLayerType.OFFLINE
+        }
+        setMapLayer(next)
+    }
+
+    fun setStealthModeEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setStealthModeEnabled(enabled)
+        }
+    }
+
     fun selectVehicle(vehicleId: String) {
         viewModelScope.launch {
             repository.selectVehicle(vehicleId)
@@ -365,7 +441,8 @@ class KalyeViewModel(
         bodyStyle: VehicleBodyStyle,
         drivetrain: String,
         fuelType: String,
-        accentColorHex: Long
+        accentColorHex: Long,
+        startingOdometerKm: Double = 0.0
     ) {
         val cleanName = nickname.trim().ifBlank { bodyStyle.label }
         val cleanModel = makeModel.trim().ifBlank { "${bodyStyle.label} • $drivetrain" }
@@ -377,11 +454,73 @@ class KalyeViewModel(
             drivetrain = drivetrain,
             fuelType = fuelType,
             accentColorHex = accentColorHex,
-            isPreset = false
+            startingOdometerKm = startingOdometerKm.coerceAtLeast(0.0)
         )
         viewModelScope.launch {
             repository.addVehicle(newVehicle)
             _syncMessage.value = "Added $cleanName to Garage"
+        }
+    }
+
+    fun updateVehicle(
+        vehicleId: String,
+        nickname: String,
+        makeModel: String,
+        bodyStyle: VehicleBodyStyle,
+        drivetrain: String,
+        fuelType: String,
+        accentColorHex: Long,
+        startingOdometerKm: Double
+    ) {
+        val cleanName = nickname.trim().ifBlank { bodyStyle.label }
+        val cleanModel = makeModel.trim().ifBlank { "${bodyStyle.label} • $drivetrain" }
+        val updated = VehicleProfile(
+            id = vehicleId,
+            nickname = cleanName,
+            makeModel = cleanModel,
+            bodyStyle = bodyStyle,
+            drivetrain = drivetrain,
+            fuelType = fuelType,
+            accentColorHex = accentColorHex,
+            startingOdometerKm = startingOdometerKm.coerceAtLeast(0.0)
+        )
+        viewModelScope.launch {
+            repository.updateVehicle(updated)
+            _syncMessage.value = "Updated $cleanName"
+        }
+    }
+
+    fun completeOnboardingVehicle(
+        nickname: String,
+        makeModel: String,
+        bodyStyle: VehicleBodyStyle,
+        drivetrain: String,
+        fuelType: String,
+        accentColorHex: Long,
+        startingOdometerKm: Double
+    ) {
+        val cleanName = nickname.trim().ifBlank { bodyStyle.label }
+        val cleanModel = makeModel.trim().ifBlank { "${bodyStyle.label} • $drivetrain" }
+        val newVehicle = VehicleProfile(
+            id = "veh_${UUID.randomUUID().toString().replace("-", "").take(10)}",
+            nickname = cleanName,
+            makeModel = cleanModel,
+            bodyStyle = bodyStyle,
+            drivetrain = drivetrain,
+            fuelType = fuelType,
+            accentColorHex = accentColorHex,
+            startingOdometerKm = startingOdometerKm.coerceAtLeast(0.0)
+        )
+        viewModelScope.launch {
+            repository.addVehicle(newVehicle)
+            repository.setGarageOnboardingDismissed(true)
+            _syncMessage.value = "Welcome! $cleanName is ready to track"
+        }
+    }
+
+    fun skipOnboarding() {
+        viewModelScope.launch {
+            repository.setGarageOnboardingDismissed(true)
         }
     }
 
@@ -396,14 +535,13 @@ class KalyeViewModel(
         name: String,
         bounds: MapViewportBounds,
         minZoom: Int,
-        maxZoom: Int,
-        layer: MapLayerType
+        maxZoom: Int
     ) {
         viewModelScope.launch {
-            val effectiveLayer = if (layer == MapLayerType.OFFLINE) MapLayerType.TOPO else layer
+            val isDark = preferences.value.themeMode == ThemeMode.DARK
             var lastProgress: RegionDownloadProgress? = null
             tileManager.downloadRegion(
-                layer = effectiveLayer,
+                isDark = isDark,
                 minLat = bounds.minLat,
                 maxLat = bounds.maxLat,
                 minLon = bounds.minLon,
@@ -426,7 +564,7 @@ class KalyeViewModel(
                         maxLon = bounds.maxLon,
                         minZoom = minZoom,
                         maxZoom = maxZoom,
-                        layerType = effectiveLayer,
+                        layerType = MapLayerType.STREET,
                         tileCount = finalProg.downloaded,
                         sizeBytes = finalProg.bytesDownloaded,
                         downloadedAtMillis = System.currentTimeMillis()
@@ -435,7 +573,7 @@ class KalyeViewModel(
             }
             refreshDiskUsage()
             _downloadProgress.value = null
-            _syncMessage.value = "Offline map region cached"
+            _syncMessage.value = "Offline street sector cached"
         }
     }
 
@@ -457,6 +595,37 @@ class KalyeViewModel(
         viewModelScope.launch {
             val count = repository.syncPendingToCloud(currentUserId)
             _syncMessage.value = if (count > 0) "Synced $count pending items" else "Cloud database is up to date"
+        }
+    }
+
+    fun checkForUpdates(silent: Boolean = false) {
+        if (_updateStatus.value is AppUpdateStatus.Checking) return
+        viewModelScope.launch {
+            if (!silent) {
+                _updateStatus.value = AppUpdateStatus.Checking
+            }
+            val result = updateChecker.checkForUpdates()
+            if (silent && result is AppUpdateStatus.Error) {
+                if (_updateStatus.value is AppUpdateStatus.Checking) {
+                    _updateStatus.value = AppUpdateStatus.Idle
+                }
+                return@launch
+            }
+            _updateStatus.value = result
+            if (!silent) {
+                when (result) {
+                    is AppUpdateStatus.UpdateAvailable -> {
+                        _syncMessage.value = "New version ${result.release.tagName} available"
+                    }
+                    is AppUpdateStatus.UpToDate -> {
+                        _syncMessage.value = "Kalye v${result.currentVersion} is up to date"
+                    }
+                    is AppUpdateStatus.Error -> {
+                        _syncMessage.value = result.message
+                    }
+                    else -> Unit
+                }
+            }
         }
     }
 

@@ -28,7 +28,7 @@ import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.FileDownload
-import androidx.compose.material.icons.rounded.Terrain
+import androidx.compose.material.icons.rounded.LocalGasStation
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -79,9 +79,22 @@ fun TripsScreen(
     val tripsState by viewModel.tripsState.collectAsStateWithLifecycle()
     val allStops by viewModel.allStops.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val vehicles by viewModel.vehicles.collectAsStateWithLifecycle()
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
 
     var selectedTagFilter by remember { mutableStateOf("All") }
+    var selectedVehicleFilterId by remember { mutableStateOf<String?>(null) }
+
+    val vehicleFilterOptions = remember(vehicles, tripsState) {
+        val fromGarage = vehicles.map { it.id to it.nickname }
+        val knownIds = fromGarage.map { it.first }.toSet()
+        val fromTrips = (tripsState as? UiState.Success)?.data
+            ?.filter { it.vehicleId.isNotBlank() && it.vehicleId !in knownIds }
+            ?.distinctBy { it.vehicleId }
+            ?.map { it.vehicleId to it.vehicleName.ifBlank { "Archived Rig" } }
+            ?: emptyList()
+        fromGarage + fromTrips
+    }
 
     Column(
         modifier = Modifier
@@ -166,6 +179,42 @@ fun TripsScreen(
             }
         }
 
+        // Vehicle Filter Chip Row (shown whenever vehicles or vehicle-tagged trips exist)
+        if (vehicleFilterOptions.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = selectedVehicleFilterId == null,
+                    onClick = { selectedVehicleFilterId = null },
+                    label = { Text("All Rigs") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.DirectionsCar,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    modifier = Modifier.testTag("filter_vehicle_all")
+                )
+                vehicleFilterOptions.forEach { (vehId, vehLabel) ->
+                    FilterChip(
+                        selected = selectedVehicleFilterId == vehId,
+                        onClick = {
+                            selectedVehicleFilterId = if (selectedVehicleFilterId == vehId) null else vehId
+                        },
+                        label = { Text(vehLabel) },
+                        modifier = Modifier.testTag("filter_vehicle_$vehId")
+                    )
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(10.dp))
 
         when (val state = tripsState) {
@@ -180,13 +229,23 @@ fun TripsScreen(
                 }
             }
             is UiState.Success -> {
-                val filtered = remember(state.data, selectedTagFilter) {
-                    if (selectedTagFilter == "All") state.data
-                    else state.data.filter { it.categoryTag.equals(selectedTagFilter, ignoreCase = true) }
+                val filtered = remember(state.data, selectedTagFilter, selectedVehicleFilterId) {
+                    state.data.filter { trip ->
+                        val matchesTag = selectedTagFilter == "All" ||
+                            trip.categoryTag.equals(selectedTagFilter, ignoreCase = true)
+                        val matchesVehicle = selectedVehicleFilterId == null ||
+                            trip.vehicleId == selectedVehicleFilterId
+                        matchesTag && matchesVehicle
+                    }
                 }
 
                 if (filtered.isEmpty()) {
                     EmptyTripsCard(
+                        hasFilter = selectedTagFilter != "All" || selectedVehicleFilterId != null,
+                        onClearFilter = {
+                            selectedTagFilter = "All"
+                            selectedVehicleFilterId = null
+                        },
                         onStartTrackRequested = onStartTrackRequested,
                         modifier = Modifier.padding(20.dp)
                     )
@@ -281,6 +340,9 @@ private fun TripHistoryCard(
     val previewPoints = remember(trip.routePolyline) {
         GeoUtils.decodeRoutePoints(trip.routePolyline)
     }
+    val fuelEffStr = remember(trip.distanceMeters, trip.totalFuelLiters, unit) {
+        GeoUtils.formatFuelEfficiency(trip.distanceMeters, trip.totalFuelLiters, unit)
+    }
 
     Surface(
         onClick = onClick,
@@ -298,16 +360,34 @@ private fun TripHistoryCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = trip.categoryTag.uppercase(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer
+                    ) {
+                        Text(
+                            text = trip.categoryTag.uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                    if (trip.vehicleName.isNotBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Text(
+                                text = trip.vehicleName,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -356,7 +436,8 @@ private fun TripHistoryCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "+${GeoUtils.formatElevation(trip.elevationGainMeters, unit)}",
@@ -364,15 +445,32 @@ private fun TripHistoryCard(
                     color = MaterialTheme.colorScheme.secondary
                 )
                 Text(
-                    text = GeoUtils.formatMovingTime(trip.durationMillis),
+                    text = GeoUtils.formatMovingTime(trip.effectiveMovingMillis),
                     style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Text(
-                    text = "$stopsCount stops • ${GeoUtils.formatCurrency(trip.totalCost, trip.currencyCode)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                if (fuelEffStr != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Rounded.LocalGasStation,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = fuelEffStr,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "$stopsCount stops • ${GeoUtils.formatCurrency(trip.totalCost, trip.currencyCode)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
         }
     }
@@ -433,6 +531,8 @@ private fun MiniRouteSilhouette(
 
 @Composable
 private fun EmptyTripsCard(
+    hasFilter: Boolean,
+    onClearFilter: () -> Unit,
     onStartTrackRequested: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -455,25 +555,39 @@ private fun EmptyTripsCard(
             )
             Spacer(modifier = Modifier.height(14.dp))
             Text(
-                text = "No expeditions recorded yet",
+                text = if (hasFilter) "No matching rides" else "No expeditions recorded yet",
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Hit the Track tab to map your next overland trail, log fuel stops & ferry fees, and generate altitude profiles.",
+                text = if (hasFilter) {
+                    "No rides match the selected category and rig filter."
+                } else {
+                    "Hit the Track tab to map your next overland trail, log fuel stops & ferry fees, and generate altitude profiles."
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(14.dp))
-            Button(
-                onClick = onStartTrackRequested,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth().height(50.dp)
-            ) {
-                Icon(Icons.Rounded.DirectionsCar, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Go to Track Map")
+            if (hasFilter) {
+                OutlinedButton(
+                    onClick = onClearFilter,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().height(50.dp)
+                ) {
+                    Text("Clear Filters")
+                }
+            } else {
+                Button(
+                    onClick = onStartTrackRequested,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().height(50.dp)
+                ) {
+                    Icon(Icons.Rounded.DirectionsCar, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Go to Track Map")
+                }
             }
         }
     }

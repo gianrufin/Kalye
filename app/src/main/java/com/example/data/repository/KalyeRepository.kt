@@ -9,6 +9,7 @@ import com.example.data.local.TagCategoryEntity
 import com.example.data.local.TrackPointEntity
 import com.example.data.local.TripEntity
 import com.example.data.local.TripStopEntity
+import com.example.data.model.AutoPauseEvaluator
 import com.example.data.model.DistanceUnit
 import com.example.data.model.GeoUtils
 import com.example.data.model.MapLayerType
@@ -20,6 +21,7 @@ import com.example.data.model.ThemeMode
 import com.example.data.model.TripStop
 import com.example.data.model.TripSummary
 import com.example.data.model.UserPreferences
+import com.example.data.model.VehicleProfile
 import com.example.data.remote.KalyeFirestoreDataSource
 import com.example.widget.KalyeDailyWidget
 import kotlinx.coroutines.CancellationException
@@ -41,7 +43,7 @@ class KalyeRepository(
     )
 
     val preferencesFlow: Flow<UserPreferences> = prefsRepo.preferencesFlow
-    val vehiclesFlow: Flow<List<com.example.data.model.VehicleProfile>> = prefsRepo.vehiclesFlow
+    val vehiclesFlow: Flow<List<VehicleProfile>> = prefsRepo.vehiclesFlow
 
     fun observeTrips(userId: String): Flow<List<TripSummary>> =
         dao.observeTrips(userId).map { list -> list.map { it.toDomain() } }
@@ -70,6 +72,7 @@ class KalyeRepository(
     fun observeRemoteTrips(userId: String): Flow<List<TripSummary>> = remote.observeTrips(userId)
     fun observeRemoteStops(userId: String): Flow<List<TripStop>> = remote.observeStops(userId)
     fun observeRemoteCategories(userId: String): Flow<List<TagCategory>> = remote.observeCategories(userId)
+    fun observeRemoteVehicles(userId: String): Flow<List<VehicleProfile>> = remote.observeVehicles(userId)
 
     suspend fun ensureDefaultCategories(userId: String) {
         val existing = dao.getCategories(userId)
@@ -135,6 +138,11 @@ class KalyeRepository(
                         currencyCode = trip.currencyCode,
                         routePolyline = trip.routePolyline,
                         pointCount = trip.pointCount,
+                        vehicleId = trip.vehicleId,
+                        vehicleName = trip.vehicleName,
+                        movingDurationMillis = trip.movingDurationMillis,
+                        autoPausedFlag = false,
+                        lastMovementTimeMillis = trip.endTimeMillis,
                         activeFlag = false,
                         pausedFlag = false,
                         syncedFlag = true,
@@ -204,11 +212,19 @@ class KalyeRepository(
         }
     }
 
+    suspend fun mergeRemoteVehicles(remoteVehicles: List<VehicleProfile>) {
+        if (remoteVehicles.isNotEmpty()) {
+            prefsRepo.replaceVehiclesFromCloud(remoteVehicles)
+        }
+    }
+
     suspend fun startNewTrip(
         userId: String,
         title: String,
         categoryTag: String,
-        currencyCode: String
+        currencyCode: String,
+        vehicleId: String = "",
+        vehicleName: String = ""
     ): TripSummary {
         val now = System.currentTimeMillis()
         val tripId = "trip_${UUID.randomUUID().toString().replace("-", "").take(16)}"
@@ -233,6 +249,11 @@ class KalyeRepository(
             currencyCode = currencyCode,
             routePolyline = "",
             pointCount = 0,
+            vehicleId = vehicleId,
+            vehicleName = vehicleName,
+            movingDurationMillis = 0L,
+            autoPausedFlag = false,
+            lastMovementTimeMillis = now,
             activeFlag = true,
             pausedFlag = false,
             syncedFlag = false,
@@ -246,11 +267,14 @@ class KalyeRepository(
 
     suspend fun setTripPaused(tripId: String, paused: Boolean) {
         val existing = dao.getTripById(tripId) ?: return
+        val now = System.currentTimeMillis()
         dao.upsertTrip(
             existing.copy(
                 pausedFlag = paused,
-                endTimeMillis = System.currentTimeMillis(),
-                updatedAtMillis = System.currentTimeMillis()
+                autoPausedFlag = false,
+                lastMovementTimeMillis = if (!paused) now else existing.lastMovementTimeMillis,
+                endTimeMillis = now,
+                updatedAtMillis = now
             )
         )
     }
@@ -271,14 +295,40 @@ class KalyeRepository(
                 lastPoint.latitude, lastPoint.longitude,
                 point.latitude, point.longitude
             )
-            // Ignore GPS jitter < 2.5m unless stationary timeout > 30s
-            if (deltaDistance < 2.5 && (point.timestampMillis - lastPoint.timestampMillis) < 30_000L) {
-                return
-            }
             val eleDiff = point.altitudeMeters - lastPoint.altitudeMeters
             // Smooth GPS altitude noise (threshold 2.0m)
             if (eleDiff >= 2.0) deltaGain = eleDiff
             else if (eleDiff <= -2.0) deltaLoss = -eleDiff
+        }
+
+        val eval = AutoPauseEvaluator.evaluate(
+            currentMovingMillis = trip.movingDurationMillis,
+            wasAutoPaused = trip.autoPausedFlag,
+            lastMovementTimeMillis = trip.lastMovementTimeMillis.takeIf { it > 0L } ?: trip.startTimeMillis,
+            lastSampleTimeMillis = lastPoint?.timestampMillis ?: trip.startTimeMillis,
+            deltaDistanceMeters = deltaDistance,
+            speedMps = point.speedMps,
+            sampleTimeMillis = point.timestampMillis
+        )
+
+        val shouldInsertPoint = lastPoint == null ||
+            (eval.isMovingSample && deltaDistance >= 2.5) ||
+            (point.timestampMillis - lastPoint.timestampMillis) >= 30_000L
+
+        if (!shouldInsertPoint) {
+            if (eval.isAutoPaused != trip.autoPausedFlag || eval.movingDurationMillis != trip.movingDurationMillis) {
+                dao.upsertTrip(
+                    trip.copy(
+                        endTimeMillis = maxOf(trip.endTimeMillis, point.timestampMillis),
+                        movingDurationMillis = eval.movingDurationMillis,
+                        autoPausedFlag = eval.isAutoPaused,
+                        lastMovementTimeMillis = eval.lastMovementTimeMillis,
+                        updatedAtMillis = System.currentTimeMillis(),
+                        syncedFlag = false
+                    )
+                )
+            }
+            return
         }
 
         dao.insertTrackPoint(
@@ -294,15 +344,16 @@ class KalyeRepository(
             )
         )
 
+        val effectiveDistanceDelta = if (eval.isMovingSample || deltaDistance >= 4.0) deltaDistance else 0.0
         val newCount = existingPoints.size + 1
         val newMaxEle = if (existingPoints.isEmpty()) point.altitudeMeters else maxOf(trip.maxElevationMeters, point.altitudeMeters)
         val newMinEle = if (existingPoints.isEmpty()) point.altitudeMeters else minOf(trip.minElevationMeters, point.altitudeMeters)
-        val speedKmh = (point.speedMps * 3.6).coerceAtLeast(0.0)
+        val speedKmh = if (eval.isAutoPaused) 0.0 else (point.speedMps * 3.6).coerceAtLeast(0.0)
 
         val updatedPoints = existingPoints.map { it.toDomain() } + point
         val updatedTrip = trip.copy(
-            endTimeMillis = point.timestampMillis,
-            distanceMeters = trip.distanceMeters + deltaDistance,
+            endTimeMillis = maxOf(trip.endTimeMillis, point.timestampMillis),
+            distanceMeters = trip.distanceMeters + effectiveDistanceDelta,
             elevationGainMeters = trip.elevationGainMeters + deltaGain,
             elevationLossMeters = trip.elevationLossMeters + deltaLoss,
             maxElevationMeters = newMaxEle,
@@ -310,6 +361,9 @@ class KalyeRepository(
             maxSpeedKmh = maxOf(trip.maxSpeedKmh, speedKmh),
             pointCount = newCount,
             routePolyline = GeoUtils.encodeRoutePoints(updatedPoints),
+            movingDurationMillis = eval.movingDurationMillis,
+            autoPausedFlag = eval.isAutoPaused,
+            lastMovementTimeMillis = eval.lastMovementTimeMillis,
             updatedAtMillis = System.currentTimeMillis(),
             syncedFlag = false
         )
@@ -322,12 +376,19 @@ class KalyeRepository(
         val points = dao.getTrackPoints(tripId).map { it.toDomain() }
         val polyline = GeoUtils.encodeRoutePoints(points)
         val now = System.currentTimeMillis()
+        val finalMovingMillis = if (trip.movingDurationMillis > 0L) {
+            trip.movingDurationMillis
+        } else {
+            (maxOf(trip.endTimeMillis, now) - trip.startTimeMillis).coerceAtLeast(0L)
+        }
         val finished = trip.copy(
             title = finalTitle?.takeIf { it.isNotBlank() } ?: trip.title,
             notes = notes ?: trip.notes,
             endTimeMillis = maxOf(trip.endTimeMillis, now),
             routePolyline = polyline,
             pointCount = points.size,
+            movingDurationMillis = finalMovingMillis,
+            autoPausedFlag = false,
             activeFlag = false,
             pausedFlag = false,
             syncedFlag = false,
@@ -581,6 +642,14 @@ class KalyeRepository(
         remote.savePreferences(currentPrefs.copy(mapLayer = layer), displayName)
     }
 
+    suspend fun setGarageOnboardingDismissed(dismissed: Boolean) {
+        prefsRepo.setGarageOnboardingDismissed(dismissed)
+    }
+
+    suspend fun setStealthModeEnabled(enabled: Boolean) {
+        prefsRepo.setStealthModeEnabled(enabled)
+    }
+
     suspend fun pullRemotePreferencesIfAvailable() {
         val remotePrefs = remote.fetchPreferences() ?: return
         prefsRepo.setDistanceUnit(remotePrefs.distanceUnit)
@@ -593,12 +662,19 @@ class KalyeRepository(
         prefsRepo.setActiveVehicleId(vehicleId)
     }
 
-    suspend fun addVehicle(vehicle: com.example.data.model.VehicleProfile) {
+    suspend fun addVehicle(vehicle: VehicleProfile) {
         prefsRepo.addVehicle(vehicle)
+        remote.upsertVehicle(vehicle)
+    }
+
+    suspend fun updateVehicle(vehicle: VehicleProfile) {
+        prefsRepo.updateVehicle(vehicle)
+        remote.upsertVehicle(vehicle)
     }
 
     suspend fun deleteVehicle(vehicleId: String) {
         prefsRepo.deleteVehicle(vehicleId)
+        remote.deleteVehicle(vehicleId)
     }
 
     suspend fun getTrackPointsOnce(tripId: String): List<RoutePoint> =

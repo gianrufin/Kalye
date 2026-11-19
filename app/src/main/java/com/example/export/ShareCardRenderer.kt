@@ -111,7 +111,7 @@ object ShareCardRenderer {
         val distUnit = config.distanceUnit.shortLabel.lowercase(Locale.US)
         val distanceText = "$distNum $distUnit"
         val elevationText = "+${GeoUtils.formatElevation(trip.elevationGainMeters, config.distanceUnit)}"
-        val movingTimeText = GeoUtils.formatMovingTime(trip.durationMillis)
+        val movingTimeText = GeoUtils.formatMovingTime(trip.effectiveMovingMillis)
         val tripName = trip.title.ifBlank { "Overland Trip" }
 
         when (config.layout) {

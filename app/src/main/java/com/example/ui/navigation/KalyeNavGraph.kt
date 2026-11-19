@@ -21,6 +21,8 @@ import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.OfflinePin
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +52,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.example.ui.KalyeViewModel
+import com.example.ui.screens.GarageOnboardingScreen
 import com.example.ui.screens.OfflineMapsScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.ShareCardScreen
@@ -57,6 +60,7 @@ import com.example.ui.screens.TrackScreen
 import com.example.ui.screens.TripDetailScreen
 import com.example.ui.screens.TripsScreen
 import com.example.ui.screens.VehicleGarageScreen
+import com.example.update.AppUpdateStatus
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -73,6 +77,9 @@ data object SettingsRoute
 
 @Serializable
 data object GarageRoute
+
+@Serializable
+data object GarageOnboardingRoute
 
 @Serializable
 data class TripDetailRoute(val tripId: String)
@@ -96,6 +103,9 @@ fun KalyeMainScaffold(
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
     val syncMessage by viewModel.syncMessage.collectAsStateWithLifecycle()
+    val shouldShowOnboarding by viewModel.shouldShowOnboarding.collectAsStateWithLifecycle()
+    val updateStatus by viewModel.updateStatus.collectAsStateWithLifecycle()
+    val hasAvailableUpdate = updateStatus is AppUpdateStatus.UpdateAvailable
 
     LaunchedEffect(syncMessage) {
         val msg = syncMessage ?: return@LaunchedEffect
@@ -114,6 +124,21 @@ fun KalyeMainScaffold(
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDest = backStackEntry?.destination
+    val isOnboarding = currentDest?.hierarchy?.any { it.hasRoute<GarageOnboardingRoute>() } == true
+
+    LaunchedEffect(shouldShowOnboarding, isOnboarding) {
+        if (shouldShowOnboarding && !isOnboarding) {
+            navController.navigate(GarageOnboardingRoute) {
+                launchSingleTop = true
+            }
+        } else if (!shouldShowOnboarding && isOnboarding) {
+            navController.navigate(TrackRoute) {
+                popUpTo(GarageOnboardingRoute) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
+
     val isTopLevel = currentDest?.hierarchy?.any { dest ->
         dest.hasRoute<TrackRoute>() ||
             dest.hasRoute<TripsRoute>() ||
@@ -138,7 +163,7 @@ fun KalyeMainScaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
-                if (isTopLevel && !useRail) {
+                if (isTopLevel && !useRail && !isOnboarding) {
                     androidx.compose.foundation.layout.Column {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         NavigationBar(
@@ -151,10 +176,17 @@ fun KalyeMainScaffold(
                                     selected = selected,
                                     onClick = { navigateToTopTab(tab.route) },
                                     icon = {
-                                        Icon(
-                                            imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
-                                            contentDescription = tab.label
-                                        )
+                                        val iconContent: @Composable () -> Unit = {
+                                            Icon(
+                                                imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
+                                                contentDescription = tab.label
+                                            )
+                                        }
+                                        if (tab.route is SettingsRoute && hasAvailableUpdate) {
+                                            BadgedBox(badge = { Badge() }) { iconContent() }
+                                        } else {
+                                            iconContent()
+                                        }
                                     },
                                     label = { Text(tab.label) },
                                     modifier = Modifier.testTag(tab.testTag)
@@ -166,7 +198,7 @@ fun KalyeMainScaffold(
             }
         ) { innerPadding ->
             Row(modifier = Modifier.fillMaxSize()) {
-                if (isTopLevel && useRail) {
+                if (isTopLevel && useRail && !isOnboarding) {
                     NavigationRail(
                         containerColor = MaterialTheme.colorScheme.surface
                     ) {
@@ -176,10 +208,17 @@ fun KalyeMainScaffold(
                                 selected = selected,
                                 onClick = { navigateToTopTab(tab.route) },
                                 icon = {
-                                    Icon(
-                                        imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
-                                        contentDescription = tab.label
-                                    )
+                                    val iconContent: @Composable () -> Unit = {
+                                        Icon(
+                                            imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
+                                            contentDescription = tab.label
+                                        )
+                                    }
+                                    if (tab.route is SettingsRoute && hasAvailableUpdate) {
+                                        BadgedBox(badge = { Badge() }) { iconContent() }
+                                    } else {
+                                        iconContent()
+                                    }
                                 },
                                 label = { Text(tab.label) },
                                 modifier = Modifier.testTag(tab.testTag)
@@ -241,6 +280,20 @@ fun KalyeMainScaffold(
                             onSignedOut = onSignedOut,
                             onOpenGarage = {
                                 navController.navigate(GarageRoute)
+                            }
+                        )
+                    }
+                    composable<GarageOnboardingRoute>(
+                        enterTransition = { fadeIn(tween(240)) },
+                        exitTransition = { fadeOut(tween(200)) }
+                    ) {
+                        GarageOnboardingScreen(
+                            viewModel = viewModel,
+                            onDone = {
+                                navController.navigate(TrackRoute) {
+                                    popUpTo(GarageOnboardingRoute) { inclusive = true }
+                                    launchSingleTop = true
+                                }
                             }
                         )
                     }

@@ -97,21 +97,8 @@ fun KalyeMapCanvas(
     val primaryColor = MaterialTheme.colorScheme.primary
     val secondaryColor = MaterialTheme.colorScheme.secondary
     val tertiaryColor = MaterialTheme.colorScheme.tertiary
-    val bgColor = if (isDark) Color(0xFF0E1310) else Color(0xFFEDE9DF)
-    val gridColor = if (isDark) Color(0xFF222B24) else Color(0xFFD4CFC2)
-
-    val darkTileFilter = remember {
-        ColorFilter.colorMatrix(
-            ColorMatrix(
-                floatArrayOf(
-                    -0.82f, 0f, 0f, 0f, 228f,
-                    0f, -0.82f, 0f, 0f, 232f,
-                    0f, 0f, -0.82f, 0f, 224f,
-                    0f, 0f, 0f, 1f, 0f
-                )
-            )
-        )
-    }
+    val bgColor = if (isDark) Color(0xFF0E1310) else Color(0xFFF3F1EC)
+    val gridColor = if (isDark) Color(0xFF1F2722) else Color(0xFFE0DDD5)
 
     val density = LocalDensity.current
     val tilePx = with(density) { 256.dp.toPx() }.toDouble()
@@ -123,7 +110,7 @@ fun KalyeMapCanvas(
                 .then(
                     if (interactive) {
                         Modifier
-                            .pointerInput(mapLayer) {
+                            .pointerInput(mapLayer, isDark) {
                                 detectTransformGestures { _, pan, zoomChange, _ ->
                                     val newZoom = (internalZoom + ln(zoomChange.toDouble()) / ln(2.0)).coerceIn(4.0, 17.5)
                                     val intZ = floor(newZoom).toInt()
@@ -203,7 +190,7 @@ fun KalyeMapCanvas(
             val startTileY = floor(minWorldY / effectiveTilePx).toInt().coerceIn(0, maxTileIndex)
             val endTileY = floor(maxWorldY / effectiveTilePx).toInt().coerceIn(0, maxTileIndex)
 
-            // Draw subtle topographic vector grid underneath
+            // Draw subtle vector grid underneath while tiles load
             val gridStep = (effectiveTilePx / 2.0).toFloat().coerceAtLeast(48f)
             var gx = ((-minWorldX % gridStep) + gridStep) % gridStep
             while (gx < size.width) {
@@ -216,13 +203,13 @@ fun KalyeMapCanvas(
                 gy += gridStep
             }
 
-            // Draw map tiles
+            // Draw minimal muted street tiles
             val dummyRead = tileTrigger // Subscribe Canvas draw to tileTrigger updates
             if (dummyRead >= 0) {
                 for (tx in startTileX..endTileX) {
                     for (ty in startTileY..endTileY) {
-                        val key = tileManager.tileKey(mapLayer, intZ, tx, ty)
-                        val cached = tileManager.getMemoryTile(mapLayer, intZ, tx, ty) ?: tileBitmaps[key]
+                        val key = tileManager.tileKey(isDark, intZ, tx, ty)
+                        val cached = tileManager.getMemoryTile(isDark, intZ, tx, ty) ?: tileBitmaps[key]
                         if (cached != null) {
                             val left = (tx * effectiveTilePx - minWorldX).roundToInt()
                             val top = (ty * effectiveTilePx - minWorldY).roundToInt()
@@ -230,13 +217,12 @@ fun KalyeMapCanvas(
                             drawImage(
                                 image = cached.asImageBitmap(),
                                 dstOffset = IntOffset(left, top),
-                                dstSize = IntSize(tileDrawSize, tileDrawSize),
-                                colorFilter = if (isDark) darkTileFilter else null
+                                dstSize = IntSize(tileDrawSize, tileDrawSize)
                             )
                         } else if (!tileBitmaps.containsKey(key)) {
                             tileBitmaps[key] = null
                             scope.launch {
-                                val loaded = tileManager.loadTile(mapLayer, intZ, tx, ty)
+                                val loaded = tileManager.loadTile(mapLayer, isDark, intZ, tx, ty)
                                 if (loaded != null) {
                                     tileBitmaps[key] = loaded
                                     tileTrigger++

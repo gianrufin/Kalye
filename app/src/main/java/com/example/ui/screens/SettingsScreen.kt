@@ -26,13 +26,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.NewReleases
+import androidx.compose.material.icons.rounded.OpenInBrowser
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -44,6 +50,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -62,6 +69,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.BuildConfig
 import com.example.auth.AuthManager
 import com.example.data.model.CurrencyCatalog
 import com.example.data.model.DistanceUnit
@@ -69,6 +77,9 @@ import com.example.data.model.MapLayerType
 import com.example.data.model.ThemeMode
 import com.example.ui.KalyeViewModel
 import com.example.ui.components.VehicleRigIllustration
+import com.example.update.AppUpdateChecker
+import com.example.update.AppUpdateStatus
+import java.util.Locale
 
 @Composable
 fun SettingsScreen(
@@ -85,6 +96,7 @@ fun SettingsScreen(
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val activeVehicle by viewModel.activeVehicle.collectAsStateWithLifecycle()
     val vehicles by viewModel.vehicles.collectAsStateWithLifecycle()
+    val updateStatus by viewModel.updateStatus.collectAsStateWithLifecycle()
 
     var showAddTagDialog by remember { mutableStateOf(false) }
     var newTagName by remember { mutableStateOf("") }
@@ -136,6 +148,7 @@ fun SettingsScreen(
                     .fillMaxWidth()
                     .testTag("open_garage_button")
             ) {
+                val currentRig = activeVehicle
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -149,13 +162,22 @@ fun SettingsScreen(
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                         contentAlignment = Alignment.Center
                     ) {
-                        VehicleRigIllustration(
-                            bodyStyle = activeVehicle.bodyStyle,
-                            accentColor = Color(activeVehicle.accentColorHex),
-                            modifier = Modifier
-                                .fillMaxWidth(0.86f)
-                                .height(46.dp)
-                        )
+                        if (currentRig != null) {
+                            VehicleRigIllustration(
+                                bodyStyle = currentRig.bodyStyle,
+                                accentColor = Color(currentRig.accentColorHex),
+                                modifier = Modifier
+                                    .fillMaxWidth(0.86f)
+                                    .height(46.dp)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Rounded.DirectionsCar,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
@@ -165,12 +187,16 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = activeVehicle.nickname,
+                            text = currentRig?.nickname ?: "No Rig Configured",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "${activeVehicle.makeModel} • ${activeVehicle.fuelType}",
+                            text = if (currentRig != null) {
+                                "${currentRig.makeModel} • ${currentRig.fuelType}"
+                            } else {
+                                "Tap to add your car or rig"
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -254,6 +280,21 @@ fun SettingsScreen(
             }
         }
 
+        // App Updates & Version Scanner Card
+        item {
+            AppUpdatesCard(
+                repoSlug = viewModel.updateRepoSlug,
+                status = updateStatus,
+                onCheckUpdates = { viewModel.checkForUpdates(silent = false) },
+                onDownloadRelease = { release ->
+                    AppUpdateChecker.openUpdateInBrowser(context, release, preferDirectApk = true)
+                },
+                onViewReleaseNotes = { release ->
+                    AppUpdateChecker.openUpdateInBrowser(context, release, preferDirectApk = false)
+                }
+            )
+        }
+
         // Light / Dark Appearance & Preferences Card
         item {
             Surface(
@@ -309,20 +350,33 @@ fun SettingsScreen(
                         }
                     }
 
-                    Text(
-                        text = "DEFAULT MAP LAYER",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        MapLayerType.entries.forEachIndexed { idx, layer ->
-                            SegmentedButton(
-                                selected = preferences.mapLayer == layer,
-                                onClick = { viewModel.setMapLayer(layer) },
-                                shape = SegmentedButtonDefaults.itemShape(idx, MapLayerType.entries.size),
-                                label = { Text(layer.label) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "OFFLINE STREET TILES ONLY",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Use cached muted street tiles without network requests",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Switch(
+                            checked = preferences.mapLayer == MapLayerType.OFFLINE,
+                            onCheckedChange = { offlineOnly ->
+                                viewModel.setMapLayer(
+                                    if (offlineOnly) MapLayerType.OFFLINE else MapLayerType.STREET
+                                )
+                            },
+                            modifier = Modifier.testTag("offline_tiles_only_switch")
+                        )
                     }
 
                     Text(
@@ -463,5 +517,211 @@ fun SettingsScreen(
                 TextButton(onClick = { showAddTagDialog = false }) { Text("Cancel") }
             }
         )
+    }
+}
+
+@Composable
+private fun AppUpdatesCard(
+    repoSlug: String,
+    status: AppUpdateStatus,
+    onCheckUpdates: () -> Unit,
+    onDownloadRelease: (com.example.update.AppReleaseInfo) -> Unit,
+    onViewReleaseNotes: (com.example.update.AppReleaseInfo) -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            width = if (status is AppUpdateStatus.UpdateAvailable) 1.5.dp else 1.dp,
+            color = if (status is AppUpdateStatus.UpdateAvailable) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.outlineVariant
+            }
+        ),
+        tonalElevation = 1.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("app_updates_card")
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "APP UPDATES & VERSION",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Kalye v${BuildConfig.VERSION_NAME}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Build ${BuildConfig.VERSION_CODE} • Repo: $repoSlug",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                when (status) {
+                    is AppUpdateStatus.UpdateAvailable -> {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = "${status.release.tagName} Ready",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    is AppUpdateStatus.UpToDate -> {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.CheckCircle,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Up to date",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                        }
+                    }
+                    else -> Unit
+                }
+            }
+
+            when (status) {
+                is AppUpdateStatus.UpdateAvailable -> {
+                    val rel = status.release
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Rounded.NewReleases,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "${rel.releaseName}${if (rel.publishedAt.isNotBlank()) " • ${rel.publishedAt}" else ""}",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            if (rel.releaseNotes.isNotBlank()) {
+                                Text(
+                                    text = rel.releaseNotes.take(260),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (!rel.apkAssetName.isNullOrBlank() && rel.apkSizeBytes > 0L) {
+                                val mb = rel.apkSizeBytes / (1024.0 * 1024.0)
+                                Text(
+                                    text = String.format(Locale.US, "APK Asset: %s (%.1f MB)", rel.apkAssetName, mb),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { onDownloadRelease(rel) },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .height(48.dp)
+                                .testTag("download_update_button")
+                        ) {
+                            Icon(Icons.Rounded.SystemUpdate, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Get ${rel.tagName}")
+                        }
+                        OutlinedButton(
+                            onClick = { onViewReleaseNotes(rel) },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                                .testTag("view_release_notes_button")
+                        ) {
+                            Icon(Icons.Rounded.OpenInBrowser, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Release")
+                        }
+                    }
+                }
+                is AppUpdateStatus.Error -> {
+                    Text(
+                        text = status.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                else -> Unit
+            }
+
+            FilledTonalButton(
+                onClick = onCheckUpdates,
+                enabled = status !is AppUpdateStatus.Checking,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .testTag("check_updates_button")
+            ) {
+                if (status is AppUpdateStatus.Checking) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Scanning Repo for Updates...")
+                } else {
+                    Icon(Icons.Rounded.SystemUpdate, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        if (status is AppUpdateStatus.Idle) "Check for Updates"
+                        else "Scan Repo Again"
+                    )
+                }
+            }
+        }
     }
 }

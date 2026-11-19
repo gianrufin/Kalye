@@ -136,9 +136,140 @@ class KalyeUnitTest {
     }
 
     @Test
-    fun `vehicle garage presets provide valid overland rigs`() {
+    fun `vehicle garage defaults start empty without preset cars`() {
         val presets = com.example.data.model.VehicleGarageDefaults.presets
-        assertTrue(presets.size >= 3)
-        assertTrue(presets.any { it.nickname == "Olive 4x4 SUV" })
+        assertTrue(presets.isEmpty())
+    }
+
+    @Test
+    fun `map layer type collapses legacy topo into minimal street`() {
+        assertEquals(com.example.data.model.MapLayerType.STREET, com.example.data.model.MapLayerType.safeFrom("TOPO"))
+        assertEquals(com.example.data.model.MapLayerType.STREET, com.example.data.model.MapLayerType.safeFrom("STREET"))
+        assertEquals(com.example.data.model.MapLayerType.OFFLINE, com.example.data.model.MapLayerType.safeFrom("OFFLINE"))
+    }
+
+    @Test
+    fun `auto pause evaluator pauses after 25s stationary and resumes on movement`() {
+        val t0 = 1_000_000L
+        val moving = com.example.data.model.AutoPauseEvaluator.evaluate(
+            currentMovingMillis = 10_000L,
+            wasAutoPaused = false,
+            lastMovementTimeMillis = t0 - 2_000L,
+            lastSampleTimeMillis = t0 - 2_000L,
+            deltaDistanceMeters = 18.0,
+            speedMps = 9.0f,
+            sampleTimeMillis = t0
+        )
+        assertEquals(false, moving.isAutoPaused)
+        assertEquals(12_000L, moving.movingDurationMillis)
+
+        // Stationary for 26s -> triggers auto-pause and stops accumulating moving duration
+        val stopped = com.example.data.model.AutoPauseEvaluator.evaluate(
+            currentMovingMillis = 12_000L,
+            wasAutoPaused = false,
+            lastMovementTimeMillis = t0,
+            lastSampleTimeMillis = t0 + 24_000L,
+            deltaDistanceMeters = 0.4,
+            speedMps = 0.2f,
+            sampleTimeMillis = t0 + 26_000L
+        )
+        assertEquals(true, stopped.isAutoPaused)
+        assertEquals(12_000L, stopped.movingDurationMillis)
+
+        // Speed >= 1.2 m/s resumes tracking
+        val resumed = com.example.data.model.AutoPauseEvaluator.evaluate(
+            currentMovingMillis = 12_000L,
+            wasAutoPaused = true,
+            lastMovementTimeMillis = t0,
+            lastSampleTimeMillis = t0 + 26_000L,
+            deltaDistanceMeters = 5.0,
+            speedMps = 2.5f,
+            sampleTimeMillis = t0 + 28_000L
+        )
+        assertEquals(false, resumed.isAutoPaused)
+        assertEquals(14_000L, resumed.movingDurationMillis)
+    }
+
+    @Test
+    fun `odometer fuel efficiency and cost per distance format accurately`() {
+        assertEquals("12,450 km", GeoUtils.formatOdometer(12450.0, DistanceUnit.KM))
+        assertEquals("12.5 km/L", GeoUtils.formatFuelEfficiency(125_000.0, 10.0, DistanceUnit.KM))
+        assertEquals("29.4 mpg", GeoUtils.formatFuelEfficiency(125_000.0, 10.0, DistanceUnit.MI))
+        assertEquals("₱6.00/km", GeoUtils.formatCostPerDistance(600.0, 100_000.0, "PHP", DistanceUnit.KM))
+
+        val tripWithMoving = TripSummary(
+            id = "t_mov",
+            userId = "u1",
+            title = "City Loop",
+            categoryTag = "Overland",
+            notes = "",
+            startTimeMillis = 1000L,
+            endTimeMillis = 61_000L,
+            distanceMeters = 5000.0,
+            elevationGainMeters = 20.0,
+            elevationLossMeters = 10.0,
+            maxElevationMeters = 100.0,
+            minElevationMeters = 80.0,
+            maxSpeedKmh = 40.0,
+            totalFuelCost = 0.0,
+            totalFerryCost = 0.0,
+            totalOtherCost = 0.0,
+            totalFuelLiters = 0.0,
+            currencyCode = "PHP",
+            routePolyline = "",
+            pointCount = 10,
+            movingDurationMillis = 35_000L
+        )
+        assertEquals(35_000L, tripWithMoving.effectiveMovingMillis)
+    }
+
+    @Test
+    fun `semver parsing and comparison order releases accurately`() {
+        val v101 = com.example.update.SemVer.parse("v1.0.1")!!
+        val v102 = com.example.update.SemVer.parse("1.0.2")!!
+        val v1010 = com.example.update.SemVer.parse("v1.0.10")!!
+        val v110 = com.example.update.SemVer.parse("1.1.0-rc1")!!
+
+        assertTrue(v102 > v101)
+        assertTrue(v1010 > v102)
+        assertTrue(v110 > v1010)
+        assertEquals("1.0.1", v101.toString())
+    }
+
+    @Test
+    fun `app update checker parses github release JSON and extracts APK asset`() {
+        val checker = com.example.update.AppUpdateChecker(
+            repoOwner = "gianrufin",
+            repoName = "Kalye",
+            currentVersionProvider = { "1.0.1" }
+        )
+        val payload = """
+            {
+              "tag_name": "v1.0.2",
+              "name": "Kalye v1.0.2",
+              "body": "Added stealth HUD and auto-pause.",
+              "draft": false,
+              "prerelease": false,
+              "published_at": "2026-11-19T12:00:00Z",
+              "html_url": "https://github.com/gianrufin/Kalye/releases/tag/v1.0.2",
+              "assets": [
+                {
+                  "name": "kalye-v1.0.2.apk",
+                  "size": 15728640,
+                  "browser_download_url": "https://github.com/gianrufin/Kalye/releases/download/v1.0.2/kalye-v1.0.2.apk"
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val parsed = checker.parseSingleReleaseJson(payload)!!
+        assertEquals("v1.0.2", parsed.tagName)
+        assertEquals("1.0.2", parsed.versionName)
+        assertEquals("kalye-v1.0.2.apk", parsed.apkAssetName)
+        assertEquals(
+            "https://github.com/gianrufin/Kalye/releases/download/v1.0.2/kalye-v1.0.2.apk",
+            parsed.apkDownloadUrl
+        )
+        assertTrue(com.example.update.SemVer.parse(parsed.versionName)!! > com.example.update.SemVer.parse("1.0.1")!!)
     }
 }

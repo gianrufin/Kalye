@@ -80,11 +80,15 @@ class KalyeTrackingService : Service() {
                         .kalyeDao().getTripById(tripId)
                     val prefs = PreferencesRepository(this@KalyeTrackingService).preferencesFlow.first()
                     if (trip != null) {
-                        val status = if (trip.pausedFlag) "Paused" else "Recording"
+                        val status = when {
+                            trip.pausedFlag -> "Paused"
+                            trip.autoPausedFlag -> "Auto-Paused"
+                            else -> "Recording"
+                        }
                         val dist = GeoUtils.formatDistance(trip.distanceMeters, prefs.distanceUnit)
-                        val elev = "+${GeoUtils.formatElevation(trip.elevationGainMeters, prefs.distanceUnit)}"
+                        val moving = GeoUtils.formatMovingTime(trip.movingDurationMillis)
                         val mgr = getSystemService(NotificationManager::class.java)
-                        mgr.notify(NOTIFICATION_ID, buildNotification("$status • $dist • $elev"))
+                        mgr.notify(NOTIFICATION_ID, buildNotification("$status • $dist • $moving"))
                     }
                 }
             }

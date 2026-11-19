@@ -123,7 +123,31 @@ test("Authenticated owner: valid preferences, categories, trips, and stops creat
     })
   );
 
-  // 3. Trip
+  // 2.5 Vehicle Garage CRUD
+  const vehRef = aliceDb.collection("users").doc(ALICE_UID).collection("vehicles").doc("veh_jimny_1");
+  await assertSucceeds(
+    vehRef.set({
+      userId: ALICE_UID,
+      nickname: "Desert Jimny",
+      makeModel: "Suzuki Jimny Sierra",
+      bodyStyle: "SUV_4X4",
+      drivetrain: "4x4",
+      fuelType: "Gasoline",
+      accentColorHex: 0xFF4B5D38,
+      startingOdometerKm: 12450.5,
+      createdAt: created,
+      updatedAt: created,
+    })
+  );
+  await assertSucceeds(
+    vehRef.update({
+      nickname: "Cordillera Jimny",
+      startingOdometerKm: 12600.0,
+      updatedAt: updated,
+    })
+  );
+
+  // 3. Trip with vehicle metadata and movingDurationMillis
   const tripRef = aliceDb.collection("users").doc(ALICE_UID).collection("trips").doc("trip_cordillera_1");
   await assertSucceeds(
     tripRef.set({
@@ -146,6 +170,9 @@ test("Authenticated owner: valid preferences, categories, trips, and stops creat
       currencyCode: "PHP",
       routePolyline: "16.4023,120.5960,1500.0;17.0833,120.9000,1480.0",
       pointCount: 2,
+      vehicleId: "veh_jimny_1",
+      vehicleName: "Cordillera Jimny",
+      movingDurationMillis: 15200000,
       createdAt: created,
       updatedAt: created,
     })
@@ -154,6 +181,7 @@ test("Authenticated owner: valid preferences, categories, trips, and stops creat
     tripRef.update({
       notes: "Halsema Highway ascent + Echo Valley camp",
       totalOtherCost: 500.0,
+      movingDurationMillis: 15400000,
       updatedAt: updated,
     })
   );
@@ -190,6 +218,10 @@ test("Authenticated owner: valid preferences, categories, trips, and stops creat
   await assertSucceeds(aliceDb.collection("users").doc(ALICE_UID).collection("trips").get());
   await assertSucceeds(aliceDb.collection("users").doc(ALICE_UID).collection("stops").get());
   await assertSucceeds(aliceDb.collection("users").doc(ALICE_UID).collection("categories").get());
+  await assertSucceeds(aliceDb.collection("users").doc(ALICE_UID).collection("vehicles").get());
+
+  // Owner can delete vehicle
+  await assertSucceeds(vehRef.delete());
 });
 
 test("Cross-user isolation: Alice cannot read, list, create, update, or delete Bob's data", async () => {
@@ -219,11 +251,25 @@ test("Cross-user isolation: Alice cannot read, list, create, update, or delete B
       createdAt: t,
       updatedAt: t,
     });
+    await db.collection("users").doc(BOB_UID).collection("vehicles").doc("bob_rig").set({
+      userId: BOB_UID,
+      nickname: "Bob Hilux",
+      makeModel: "Toyota Hilux",
+      bodyStyle: "PICKUP",
+      drivetrain: "4x4",
+      fuelType: "Diesel",
+      accentColorHex: 0xFFC8652B,
+      startingOdometerKm: 1000.0,
+      createdAt: t,
+      updatedAt: t,
+    });
   });
 
   const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
   await assertFails(aliceDb.collection("users").doc(BOB_UID).collection("trips").get());
   await assertFails(aliceDb.collection("users").doc(BOB_UID).collection("trips").doc("bob_trip").get());
+  await assertFails(aliceDb.collection("users").doc(BOB_UID).collection("vehicles").get());
+  await assertFails(aliceDb.collection("users").doc(BOB_UID).collection("vehicles").doc("bob_rig").delete());
   await assertFails(
     aliceDb.collection("users").doc(BOB_UID).collection("trips").doc("bob_trip").update({
       title: "Hijacked",
@@ -274,6 +320,22 @@ test("Schema & security negative bounds: rejects @DocumentId key, future timesta
       iconKey: "terrain",
       defaultTag: false,
       createdAt: new Date(Date.now() + 60000),
+      updatedAt: created,
+    })
+  );
+
+  // Rejects invalid vehicle bodyStyle and negative starting odometer
+  await assertFails(
+    aliceDb.collection("users").doc(ALICE_UID).collection("vehicles").doc("veh_bad").set({
+      userId: ALICE_UID,
+      nickname: "Bad Rig",
+      makeModel: "Jet",
+      bodyStyle: "JETPACK",
+      drivetrain: "4x4",
+      fuelType: "Diesel",
+      accentColorHex: 0xFF4B5D38,
+      startingOdometerKm: -10.0,
+      createdAt: created,
       updatedAt: created,
     })
   );

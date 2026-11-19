@@ -48,26 +48,20 @@ class OfflineTileCacheManager(context: Context) {
         .readTimeout(12, TimeUnit.SECONDS)
         .build()
 
-    fun tileKey(layer: MapLayerType, z: Int, x: Int, y: Int): String {
-        val effectiveLayer = if (layer == MapLayerType.OFFLINE) MapLayerType.TOPO else layer
-        return "${effectiveLayer.name.lowercase()}/$z/$x/$y"
+    fun tileKey(isDark: Boolean, z: Int, x: Int, y: Int): String {
+        val variant = if (isDark) "street_dark" else "street_light"
+        return "$variant/$z/$x/$y"
     }
 
-    fun getMemoryTile(layer: MapLayerType, z: Int, x: Int, y: Int): Bitmap? {
-        val primary = memoryCache.get(tileKey(layer, z, x, y))
-        if (primary != null) return primary
-        if (layer == MapLayerType.OFFLINE) {
-            return memoryCache.get(tileKey(MapLayerType.STREET, z, x, y))
-        }
-        return null
+    fun getMemoryTile(isDark: Boolean, z: Int, x: Int, y: Int): Bitmap? {
+        return memoryCache.get(tileKey(isDark, z, x, y))
     }
 
-    suspend fun loadTile(layer: MapLayerType, z: Int, x: Int, y: Int): Bitmap? = withContext(Dispatchers.IO) {
-        val effectiveLayer = if (layer == MapLayerType.OFFLINE) MapLayerType.TOPO else layer
-        val key = tileKey(effectiveLayer, z, x, y)
+    suspend fun loadTile(layer: MapLayerType, isDark: Boolean, z: Int, x: Int, y: Int): Bitmap? = withContext(Dispatchers.IO) {
+        val key = tileKey(isDark, z, x, y)
         memoryCache.get(key)?.let { return@withContext it }
 
-        val file = tileFile(effectiveLayer, z, x, y)
+        val file = tileFile(isDark, z, x, y)
         if (file.exists() && file.length() > 0L) {
             decodeFile(file)?.let { bmp ->
                 memoryCache.put(key, bmp)
@@ -76,17 +70,10 @@ class OfflineTileCacheManager(context: Context) {
         }
 
         if (layer == MapLayerType.OFFLINE) {
-            val streetFile = tileFile(MapLayerType.STREET, z, x, y)
-            if (streetFile.exists() && streetFile.length() > 0L) {
-                decodeFile(streetFile)?.let { bmp ->
-                    memoryCache.put(tileKey(MapLayerType.STREET, z, x, y), bmp)
-                    return@withContext bmp
-                }
-            }
             return@withContext null
         }
 
-        val bytes = fetchRemoteTileBytes(effectiveLayer, z, x, y) ?: return@withContext null
+        val bytes = fetchRemoteTileBytes(isDark, z, x, y) ?: return@withContext null
         file.parentFile?.mkdirs()
         FileOutputStream(file).use { it.write(bytes) }
         val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
@@ -104,18 +91,17 @@ class OfflineTileCacheManager(context: Context) {
         }
     }
 
-    private fun tileFile(layer: MapLayerType, z: Int, x: Int, y: Int): File {
-        return File(cacheRoot, "${layer.name.lowercase()}/$z/$x/$y.png")
+    private fun tileFile(isDark: Boolean, z: Int, x: Int, y: Int): File {
+        val variant = if (isDark) "street_dark" else "street_light"
+        return File(cacheRoot, "$variant/$z/$x/$y.png")
     }
 
-    private fun fetchRemoteTileBytes(layer: MapLayerType, z: Int, x: Int, y: Int): ByteArray? {
-        val url = when (layer) {
-            MapLayerType.TOPO, MapLayerType.OFFLINE -> "https://tile.opentopomap.org/$z/$x/$y.png"
-            MapLayerType.STREET -> "https://tile.openstreetmap.org/$z/$x/$y.png"
-        }
+    private fun fetchRemoteTileBytes(isDark: Boolean, z: Int, x: Int, y: Int): ByteArray? {
+        val style = if (isDark) "dark_all" else "light_all"
+        val url = "https://basemaps.cartocdn.com/$style/$z/$x/$y.png"
         val request = Request.Builder()
             .url(url)
-            .header("User-Agent", "KalyeOverlandTracker/1.0 (Android)")
+            .header("User-Agent", "KalyeLocationTracker/1.0 (Android)")
             .build()
         return try {
             client.newCall(request).execute().use { resp ->
@@ -155,7 +141,7 @@ class OfflineTileCacheManager(context: Context) {
     }
 
     fun downloadRegion(
-        layer: MapLayerType,
+        isDark: Boolean,
         minLat: Double,
         maxLat: Double,
         minLon: Double,
@@ -163,7 +149,6 @@ class OfflineTileCacheManager(context: Context) {
         minZoom: Int,
         maxZoom: Int
     ): Flow<RegionDownloadProgress> = flow {
-        val effectiveLayer = if (layer == MapLayerType.OFFLINE) MapLayerType.TOPO else layer
         val tiles = estimateTileList(minLat, maxLat, minLon, maxLon, minZoom, maxZoom)
         val total = tiles.size
         if (total == 0) {
@@ -174,13 +159,13 @@ class OfflineTileCacheManager(context: Context) {
         var totalBytes = 0L
         val semaphore = Semaphore(4)
         for (tile in tiles) {
-            val file = tileFile(effectiveLayer, tile.z, tile.x, tile.y)
+            val file = tileFile(isDark, tile.z, tile.x, tile.y)
             if (file.exists() && file.length() > 0L) {
                 downloaded++
                 totalBytes += file.length()
             } else {
                 semaphore.withPermit {
-                    val bytes = fetchRemoteTileBytes(effectiveLayer, tile.z, tile.x, tile.y)
+                    val bytes = fetchRemoteTileBytes(isDark, tile.z, tile.x, tile.y)
                     if (bytes != null) {
                         file.parentFile?.mkdirs()
                         FileOutputStream(file).use { it.write(bytes) }

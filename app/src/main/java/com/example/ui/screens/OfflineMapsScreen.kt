@@ -221,7 +221,7 @@ fun OfflineMapsScreen(
                     }
 
                     Text(
-                        text = "Estimated download: $estimatedTiles topo/street tiles (~${String.format(Locale.US, "%.1f", estimatedTiles * 0.025)} MB)",
+                        text = "Estimated download: $estimatedTiles street tiles (~${String.format(Locale.US, "%.1f", estimatedTiles * 0.025)} MB)",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -249,8 +249,7 @@ fun OfflineMapsScreen(
                                 name = regionName,
                                 bounds = currentBounds,
                                 minZoom = minZoom,
-                                maxZoom = maxZoom,
-                                layer = preferences.mapLayer
+                                maxZoom = maxZoom
                             )
                             regionName = ""
                         },

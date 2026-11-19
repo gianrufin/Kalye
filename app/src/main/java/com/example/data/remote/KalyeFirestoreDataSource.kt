@@ -7,6 +7,7 @@ import com.example.data.model.FirestoreCategory
 import com.example.data.model.FirestorePreferences
 import com.example.data.model.FirestoreStop
 import com.example.data.model.FirestoreTrip
+import com.example.data.model.FirestoreVehicle
 import com.example.data.model.MapLayerType
 import com.example.data.model.StopType
 import com.example.data.model.TagCategory
@@ -14,6 +15,8 @@ import com.example.data.model.ThemeMode
 import com.example.data.model.TripStop
 import com.example.data.model.TripSummary
 import com.example.data.model.UserPreferences
+import com.example.data.model.VehicleBodyStyle
+import com.example.data.model.VehicleProfile
 import com.example.data.model.toCreateMap
 import com.example.data.model.toUpdateMap
 import com.google.firebase.Firebase
@@ -79,9 +82,49 @@ class KalyeFirestoreDataSource(
                             currencyCode = dto.currencyCode,
                             routePolyline = dto.routePolyline,
                             pointCount = dto.pointCount.toInt(),
+                            vehicleId = dto.vehicleId,
+                            vehicleName = dto.vehicleName,
+                            movingDurationMillis = dto.movingDurationMillis,
                             isActive = false,
                             isPaused = false,
                             isSynced = true
+                        )
+                    }
+                }
+                .catch { error ->
+                    val firestoreError = generateSequence(error) { it.cause }
+                        .filterIsInstance<FirebaseFirestoreException>()
+                        .firstOrNull()
+                    if (firestoreError == null && error is CancellationException) throw error
+                    val exceptionToLog = firestoreError ?: (error as? Exception)
+                    if (exceptionToLog != null && auth.currentUser?.uid == userId) {
+                        handleFirestoreError(exceptionToLog, OperationType.LIST, path)
+                    }
+                    throw error
+                }
+        )
+    }
+
+    fun observeVehicles(userId: String): Flow<List<VehicleProfile>> = flow {
+        require(userId.isNotBlank()) { "userId must not be blank" }
+        val path = "users/$userId/vehicles"
+        emitAll(
+            db.collection("users").document(userId).collection("vehicles")
+                .snapshots()
+                .map { snapshot ->
+                    snapshot.toObjects(
+                        FirestoreVehicle::class.java,
+                        DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
+                    ).map { dto ->
+                        VehicleProfile(
+                            id = dto.id,
+                            nickname = dto.nickname,
+                            makeModel = dto.makeModel,
+                            bodyStyle = VehicleBodyStyle.safeFrom(dto.bodyStyle),
+                            drivetrain = dto.drivetrain,
+                            fuelType = dto.fuelType,
+                            accentColorHex = dto.accentColorHex,
+                            startingOdometerKm = dto.startingOdometerKm
                         )
                     }
                 }
@@ -302,6 +345,45 @@ class KalyeFirestoreDataSource(
             val uid = requireUserId()
             require(categoryId.isNotBlank()) { "Category ID must not be blank" }
             val docRef = db.collection("users").document(uid).collection("categories").document(categoryId)
+            docPath = docRef.path
+            docRef.delete().await()
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.DELETE, docPath)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun upsertVehicle(vehicle: VehicleProfile): Result<Unit> {
+        var docPath = "users/${auth.currentUser?.uid ?: "unauthenticated"}/vehicles/${vehicle.id}"
+        return try {
+            val uid = requireUserId()
+            require(vehicle.id.isNotBlank()) { "Vehicle ID must not be blank" }
+            val docRef = db.collection("users").document(uid).collection("vehicles").document(vehicle.id)
+            docPath = docRef.path
+            val existing = docRef.get().await()
+            if (existing.exists()) {
+                docRef.update(vehicle.toUpdateMap()).await()
+            } else {
+                docRef.set(vehicle.toCreateMap(uid)).await()
+            }
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.WRITE, docPath)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteVehicle(vehicleId: String): Result<Unit> {
+        var docPath = "users/${auth.currentUser?.uid ?: "unauthenticated"}/vehicles/$vehicleId"
+        return try {
+            val uid = requireUserId()
+            require(vehicleId.isNotBlank()) { "Vehicle ID must not be blank" }
+            val docRef = db.collection("users").document(uid).collection("vehicles").document(vehicleId)
             docPath = docRef.path
             docRef.delete().await()
             Result.success(Unit)

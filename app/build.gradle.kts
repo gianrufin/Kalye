@@ -17,8 +17,15 @@ android {
     applicationId = "com.aistudio.kalye.xmqrtz"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    val envVersionName = (project.findProperty("appVersionName") as? String)
+        ?: System.getenv("APP_VERSION_NAME")
+    val envVersionCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull()
+        ?: System.getenv("APP_VERSION_CODE")?.toIntOrNull()
+    versionCode = envVersionCode ?: 10001
+    versionName = envVersionName?.removePrefix("v") ?: "1.0.1"
+
+    buildConfigField("String", "GITHUB_REPO_OWNER", "\"gianrufin\"")
+    buildConfigField("String", "GITHUB_REPO_NAME", "\"Kalye\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
