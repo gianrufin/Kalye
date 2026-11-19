@@ -17,12 +17,15 @@ android {
     applicationId = "com.aistudio.kalye.xmqrtz"
     minSdk = 24
     targetSdk = 36
-    val envVersionName = (project.findProperty("appVersionName") as? String)
-        ?: System.getenv("APP_VERSION_NAME")
-    val envVersionCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull()
-        ?: System.getenv("APP_VERSION_CODE")?.toIntOrNull()
-    versionCode = envVersionCode ?: 10001
-    versionName = envVersionName?.removePrefix("v") ?: "1.0.1"
+    val envVersionName = providers.gradleProperty("appVersionName")
+        .orElse(providers.environmentVariable("APP_VERSION_NAME"))
+        .orNull
+    val envVersionCode = providers.gradleProperty("appVersionCode")
+        .orElse(providers.environmentVariable("APP_VERSION_CODE"))
+        .orNull
+        ?.toIntOrNull()
+    versionCode = envVersionCode ?: 10002
+    versionName = envVersionName?.removePrefix("v") ?: "1.0.2"
 
     buildConfigField("String", "GITHUB_REPO_OWNER", "\"gianrufin\"")
     buildConfigField("String", "GITHUB_REPO_NAME", "\"Kalye\"")

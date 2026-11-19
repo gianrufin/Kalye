@@ -99,6 +99,32 @@ fun KalyeMapCanvas(
     val tertiaryColor = MaterialTheme.colorScheme.tertiary
     val bgColor = if (isDark) Color(0xFF0E1310) else Color(0xFFF3F1EC)
     val gridColor = if (isDark) Color(0xFF1F2722) else Color(0xFFE0DDD5)
+    val minimalMapFilter = remember(isDark) {
+        val desat = ColorMatrix().apply { setToSaturation(if (isDark) 0.10f else 0.12f) }
+        val tone = if (isDark) {
+            // Invert bright OSM base into sleek obsidian dark-mode minimal streets
+            ColorMatrix(
+                floatArrayOf(
+                    -1.12f, 0f, 0f, 0f, 286f,
+                    0f, -1.10f, 0f, 0f, 287f,
+                    0f, 0f, -1.08f, 0f, 284f,
+                    0f, 0f, 0f, 1f, 0f
+                )
+            )
+        } else {
+            // Soft warm-alabaster editorial contrast for minimal light street view
+            ColorMatrix(
+                floatArrayOf(
+                    0.93f, 0f, 0f, 0f, 14f,
+                    0f, 0.93f, 0f, 0f, 13f,
+                    0f, 0f, 0.91f, 0f, 10f,
+                    0f, 0f, 0f, 1f, 0f
+                )
+            )
+        }
+        tone.timesAssign(desat)
+        ColorFilter.colorMatrix(tone)
+    }
 
     val density = LocalDensity.current
     val tilePx = with(density) { 256.dp.toPx() }.toDouble()
@@ -217,7 +243,8 @@ fun KalyeMapCanvas(
                             drawImage(
                                 image = cached.asImageBitmap(),
                                 dstOffset = IntOffset(left, top),
-                                dstSize = IntSize(tileDrawSize, tileDrawSize)
+                                dstSize = IntSize(tileDrawSize, tileDrawSize),
+                                colorFilter = minimalMapFilter
                             )
                         } else if (!tileBitmaps.containsKey(key)) {
                             tileBitmaps[key] = null

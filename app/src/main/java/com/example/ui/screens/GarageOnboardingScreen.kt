@@ -84,6 +84,7 @@ fun GarageOnboardingScreen(
 
     val colorSwatches = remember {
         listOf(
+            0xFFF4F5F2L, // Pearl White
             0xFF4B5D38L, // Olive
             0xFFC8652BL, // Clay Terracotta
             0xFF2A5C48L, // Forest Pine
@@ -277,7 +278,10 @@ fun GarageOnboardingScreen(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     colorSwatches.forEach { hex ->
                         val selected = colorHex == hex
                         Box(
@@ -285,11 +289,13 @@ fun GarageOnboardingScreen(
                                 .size(34.dp)
                                 .clip(CircleShape)
                                 .background(Color(hex))
-                                .then(
-                                    if (selected) Modifier.border(2.5.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
-                                    else Modifier
+                                .border(
+                                    width = if (selected) 2.5.dp else 1.dp,
+                                    color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+                                    shape = CircleShape
                                 )
                                 .clickable { colorHex = hex }
+                                .testTag("onboarding_color_${java.lang.Long.toHexString(hex)}")
                         )
                     }
                 }

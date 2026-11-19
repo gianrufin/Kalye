@@ -93,6 +93,7 @@ private fun DrawScope.drawSuv(
         close()
     }
     drawPath(silhouette, color = body)
+    drawPath(silhouette, color = trim.copy(alpha = 0.24f), style = Stroke(width = h * 0.018f, join = StrokeJoin.Round))
 
     // Lower cladding & bumper
     drawRoundRect(
@@ -164,6 +165,7 @@ private fun DrawScope.drawPickup(
         close()
     }
     drawPath(silhouette, color = body)
+    drawPath(silhouette, color = trim.copy(alpha = 0.24f), style = Stroke(width = h * 0.018f, join = StrokeJoin.Round))
 
     drawRoundRect(
         color = darkBody,
@@ -222,6 +224,7 @@ private fun DrawScope.drawSedan(
         close()
     }
     drawPath(silhouette, color = body)
+    drawPath(silhouette, color = trim.copy(alpha = 0.24f), style = Stroke(width = h * 0.018f, join = StrokeJoin.Round))
 
     drawRoundRect(
         color = darkBody,
@@ -286,6 +289,7 @@ private fun DrawScope.drawVan(
         close()
     }
     drawPath(silhouette, color = body)
+    drawPath(silhouette, color = trim.copy(alpha = 0.24f), style = Stroke(width = h * 0.018f, join = StrokeJoin.Round))
 
     drawRoundRect(
         color = darkBody,
@@ -377,6 +381,7 @@ private fun DrawScope.drawMoto(
         close()
     }
     drawPath(tankPath, color = body)
+    drawPath(tankPath, color = trim.copy(alpha = 0.24f), style = Stroke(width = h * 0.018f, join = StrokeJoin.Round))
 
     // Adventure windscreen
     drawLine(

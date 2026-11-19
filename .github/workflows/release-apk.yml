@@ -127,20 +127,15 @@ jobs:
             echo "::warning::app/google-services.json not found. APK will compile, but add GOOGLE_SERVICES_JSON secret for Firebase & Google Sign-In."
           fi
 
-      - name: Prepare environment secrets
-        env:
-          MAP_TILES_API_KEY: ${{ secrets.MAP_TILES_API_KEY }}
-        run: |
-          if [ -n "$MAP_TILES_API_KEY" ]; then
-            printf 'MAP_TILES_API_KEY=%s\n' "$MAP_TILES_API_KEY" > .env
-            echo "Injected MAP_TILES_API_KEY into .env for build"
-          fi
-
       - name: Run unit tests
         env:
           APP_VERSION_NAME: ${{ steps.version.outputs.version_name }}
           APP_VERSION_CODE: ${{ steps.version.outputs.version_code }}
-        run: gradle :app:testDebugUnitTest --no-daemon
+        run: >
+          gradle :app:testDebugUnitTest
+          -PappVersionName="${{ steps.version.outputs.version_name }}"
+          -PappVersionCode="${{ steps.version.outputs.version_code }}"
+          --no-daemon --no-configuration-cache
 
       - name: Upload test report on failure
         if: failure()
@@ -160,12 +155,14 @@ jobs:
           APP_VERSION_CODE: ${{ steps.version.outputs.version_code }}
         run: |
           TAG="${{ steps.version.outputs.tag_name }}"
+          VNAME="${{ steps.version.outputs.version_name }}"
+          VCODE="${{ steps.version.outputs.version_code }}"
           if [ "${{ steps.signing.outputs.mode }}" = "release" ]; then
-            gradle :app:assembleRelease --no-daemon
+            gradle :app:assembleRelease -PappVersionName="$VNAME" -PappVersionCode="$VCODE" --no-daemon --no-configuration-cache
             SRC_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
             OUT_APK="kalye-${TAG}-release.apk"
           else
-            gradle :app:assembleDebug --no-daemon
+            gradle :app:assembleDebug -PappVersionName="$VNAME" -PappVersionCode="$VCODE" --no-daemon --no-configuration-cache
             SRC_APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
             OUT_APK="kalye-${TAG}.apk"
           fi
@@ -174,6 +171,10 @@ jobs:
             exit 1
           fi
           cp "$SRC_APK" "$OUT_APK"
+          APKSIGNER=$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort -V | tail -n 1 || true)
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --print-certs "$OUT_APK" || true
+          fi
           echo "apk_path=$OUT_APK" >> "$GITHUB_OUTPUT"
           echo "tag_name=$TAG" >> "$GITHUB_OUTPUT"
 
