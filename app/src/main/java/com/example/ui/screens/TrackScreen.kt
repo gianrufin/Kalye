@@ -6,9 +6,15 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,8 +35,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Cabin
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.DirectionsBoat
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.Garage
 import androidx.compose.material.icons.rounded.GpsFixed
 import androidx.compose.material.icons.rounded.GpsNotFixed
 import androidx.compose.material.icons.rounded.Layers
@@ -45,12 +54,14 @@ import androidx.compose.material.icons.rounded.Terrain
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SmallFloatingActionButton
@@ -66,6 +77,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -83,25 +95,32 @@ import com.example.location.KalyeTrackingService
 import com.example.maps.KalyeMapCanvas
 import com.example.ui.KalyeViewModel
 import com.example.ui.components.LogStopSheet
+import com.example.ui.components.VehicleRigIllustration
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TrackScreen(
     viewModel: KalyeViewModel,
     bottomBarPadding: PaddingValues,
-    onRideFinished: (String) -> Unit
+    onRideFinished: (String) -> Unit,
+    onOpenGarage: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
+    val activeVehicle by viewModel.activeVehicle.collectAsStateWithLifecycle()
+    val vehicles by viewModel.vehicles.collectAsStateWithLifecycle()
     val activeTrip by viewModel.activeTrip.collectAsStateWithLifecycle()
     val activePoints by viewModel.activeTrackPoints.collectAsStateWithLifecycle()
     val activeStops by viewModel.activeTripStops.collectAsStateWithLifecycle()
     val telemetry by viewModel.liveTelemetry.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val permissionGranted by viewModel.locationPermissionGranted.collectAsStateWithLifecycle()
+
+    var showVehiclePickerSheet by remember { mutableStateOf(false) }
 
     var followGps by remember { mutableStateOf(true) }
     var mapCenterLat by remember { mutableDoubleStateOf(16.4023) } // Cordillera default before GPS lock
@@ -196,8 +215,9 @@ fun TrackScreen(
                     if (!permissionGranted) permissionLauncher.launch(requiredPermissions)
                 },
                 shape = RoundedCornerShape(100.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                tonalElevation = 4.dp
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                tonalElevation = 2.dp
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -267,8 +287,9 @@ fun TrackScreen(
                         viewModel.setMapLayer(nextLayer)
                     },
                     shape = RoundedCornerShape(100.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                    tonalElevation = 4.dp
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    tonalElevation = 2.dp
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -291,22 +312,25 @@ fun TrackScreen(
 
                 Surface(
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                    tonalElevation = 4.dp
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    tonalElevation = 2.dp
                 ) {
                     IconButton(
                         onClick = { viewModel.toggleDarkModeQuick() },
                         modifier = Modifier.testTag("quick_dark_mode_toggle")
                     ) {
-                        Icon(
-                            imageVector = if (preferences.themeMode == ThemeMode.DARK) {
-                                Icons.Rounded.LightMode
-                            } else {
-                                Icons.Rounded.DarkMode
-                            },
-                            contentDescription = "Toggle Dark Mode",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
+                        AnimatedContent(
+                            targetState = preferences.themeMode == ThemeMode.DARK,
+                            transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(150)) },
+                            label = "theme_toggle_icon"
+                        ) { isDark ->
+                            Icon(
+                                imageVector = if (isDark) Icons.Rounded.LightMode else Icons.Rounded.DarkMode,
+                                contentDescription = "Toggle Light or Dark Mode",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
             }
@@ -365,20 +389,78 @@ fun TrackScreen(
 
             AnimatedContent(
                 targetState = activeTrip,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(160))
+                },
                 label = "cockpit_state"
             ) { trip ->
                 if (trip == null) {
-                    // IDLE: Category tag selector + Giant 1-tap Start Ride button
+                    // IDLE: Active Rig Pill + Category tag selector + Giant 1-tap Start Ride button
                     Surface(
                         shape = RoundedCornerShape(24.dp),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-                        tonalElevation = 6.dp,
-                        modifier = Modifier.fillMaxWidth()
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        tonalElevation = 2.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
+                            // Compact Active Rig Selector Pill
+                            Surface(
+                                onClick = { showVehiclePickerSheet = true },
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("track_vehicle_picker_pill")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    VehicleRigIllustration(
+                                        bodyStyle = activeVehicle.bodyStyle,
+                                        accentColor = Color(activeVehicle.accentColorHex),
+                                        modifier = Modifier.size(width = 48.dp, height = 30.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = activeVehicle.nickname,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "${activeVehicle.drivetrain} • ${activeVehicle.fuelType}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.secondaryContainer
+                                    ) {
+                                        Text(
+                                            text = "Active Rig",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = Icons.Rounded.ExpandMore,
+                                        contentDescription = "Select vehicle",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -431,9 +513,12 @@ fun TrackScreen(
                     // ACTIVE RIDE COCKPIT: Oversized telemetry + 1-tap stop logging + Pause/Finish
                     Surface(
                         shape = RoundedCornerShape(26.dp),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
-                        tonalElevation = 8.dp,
-                        modifier = Modifier.fillMaxWidth()
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        tonalElevation = 4.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -446,26 +531,26 @@ fun TrackScreen(
                             ) {
                                 Column {
                                     Text(
-                                        text = if (trip.isPaused) "PAUSED • ${trip.categoryTag.uppercase()}" else "● RECORDING • ${trip.categoryTag.uppercase()}",
+                                        text = if (trip.isPaused) "PAUSED • ${activeVehicle.nickname.uppercase()}" else "● RECORDING • ${activeVehicle.nickname.uppercase()}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = if (trip.isPaused) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.secondary
                                     )
                                     Text(
                                         text = GeoUtils.formatDistance(trip.distanceMeters, preferences.distanceUnit),
-                                        style = MaterialTheme.typography.displayMedium,
+                                        style = MaterialTheme.typography.displayMedium.copy(fontFeatureSettings = "tnum"),
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
 
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(
-                                        text = GeoUtils.formatDuration(trip.durationMillis),
-                                        style = MaterialTheme.typography.titleLarge,
+                                        text = GeoUtils.formatMovingTime(trip.durationMillis),
+                                        style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
                                         text = "+${GeoUtils.formatElevation(trip.elevationGainMeters, preferences.distanceUnit)} • ${GeoUtils.formatCurrency(trip.totalCost, trip.currencyCode)}",
-                                        style = MaterialTheme.typography.labelSmall,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
@@ -648,6 +733,82 @@ fun TrackScreen(
                 }
             }
         )
+    }
+
+    if (showVehiclePickerSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showVehiclePickerSheet = false }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Select Active Rig", style = MaterialTheme.typography.headlineMedium)
+                    TextButton(
+                        onClick = {
+                            showVehiclePickerSheet = false
+                            onOpenGarage()
+                        }
+                    ) {
+                        Icon(Icons.Rounded.Garage, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Open Garage")
+                    }
+                }
+
+                vehicles.forEach { veh ->
+                    val selected = veh.id == activeVehicle.id
+                    Surface(
+                        onClick = {
+                            viewModel.selectVehicle(veh.id)
+                            showVehiclePickerSheet = false
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (selected) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        border = BorderStroke(
+                            if (selected) 1.6.dp else 1.dp,
+                            if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outlineVariant
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            VehicleRigIllustration(
+                                bodyStyle = veh.bodyStyle,
+                                accentColor = Color(veh.accentColorHex),
+                                modifier = Modifier.size(width = 58.dp, height = 38.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(veh.nickname, style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    text = "${veh.makeModel} • ${veh.fuelType}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (selected) {
+                                Icon(
+                                    imageVector = Icons.Rounded.CheckCircle,
+                                    contentDescription = "Active",
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
     }
 }
 

@@ -6,6 +6,7 @@ import com.google.firebase.firestore.DocumentId
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.IgnoreExtraProperties
 import com.google.firebase.firestore.ServerTimestamp
+import kotlinx.serialization.Serializable
 import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -25,13 +26,14 @@ enum class DistanceUnit(val label: String, val shortLabel: String) {
 }
 
 enum class ThemeMode(val label: String) {
-    SYSTEM("System"),
     LIGHT("Light"),
-    DARK("Dark (OLED)");
+    DARK("Dark");
 
     companion object {
-        fun safeFrom(raw: String?): ThemeMode =
-            entries.firstOrNull { it.name == raw } ?: SYSTEM
+        fun safeFrom(raw: String?): ThemeMode = when (raw) {
+            DARK.name -> DARK
+            else -> LIGHT
+        }
     }
 }
 
@@ -60,11 +62,93 @@ enum class StopType(val label: String) {
     }
 }
 
-enum class ShareCardTheme(val label: String) {
-    TOPO_DARK("Topo Basalt"),
-    DESERT_SAND("Desert Sand"),
-    ALPINE_PINE("Alpine Pine"),
-    TRANSPARENT_GLASS("Transparent Overlay")
+enum class ShareCardLayout(val label: String) {
+    CLASSIC_STACK("Centered"),
+    CORNER_EDITORIAL("Editorial"),
+    COMPACT_BAR("Bottom Strip"),
+    ROUTE_HERO("Trail Focus")
+}
+
+enum class ShareCardInkStyle(val label: String, val isTransparent: Boolean) {
+    WHITE_TRANSPARENT("White Sticker", true),
+    DARK_TRANSPARENT("Dark Sticker", true),
+    DARK_CARD("Smoked Card", false)
+}
+
+@Serializable
+enum class VehicleBodyStyle(val label: String) {
+    SUV_4X4("4x4 SUV"),
+    PICKUP("Overland Pickup"),
+    SEDAN("Touring Sedan"),
+    VAN("Camper Van"),
+    MOTO("Dual-Sport Moto")
+}
+
+@Serializable
+data class VehicleProfile(
+    val id: String,
+    val nickname: String,
+    val makeModel: String,
+    val bodyStyle: VehicleBodyStyle = VehicleBodyStyle.SUV_4X4,
+    val drivetrain: String = "4x4",
+    val fuelType: String = "Diesel",
+    val accentColorHex: Long = 0xFF4B5D38L,
+    val isPreset: Boolean = false
+)
+
+object VehicleGarageDefaults {
+    val presets: List<VehicleProfile> = listOf(
+        VehicleProfile(
+            id = "veh_olive_suv",
+            nickname = "Olive 4x4 SUV",
+            makeModel = "Toyota Fortuner • 4x4 SUV",
+            bodyStyle = VehicleBodyStyle.SUV_4X4,
+            drivetrain = "4x4",
+            fuelType = "Diesel",
+            accentColorHex = 0xFF4B5D38L,
+            isPreset = true
+        ),
+        VehicleProfile(
+            id = "veh_trail_pickup",
+            nickname = "Trail Pickup",
+            makeModel = "Ford Ranger • Overland Pickup",
+            bodyStyle = VehicleBodyStyle.PICKUP,
+            drivetrain = "4x4",
+            fuelType = "Diesel",
+            accentColorHex = 0xFFC8652BL,
+            isPreset = true
+        ),
+        VehicleProfile(
+            id = "veh_city_cruiser",
+            nickname = "City Cruiser",
+            makeModel = "Honda Civic • Touring Sedan",
+            bodyStyle = VehicleBodyStyle.SEDAN,
+            drivetrain = "FWD",
+            fuelType = "Gasoline",
+            accentColorHex = 0xFF5D6B78L,
+            isPreset = true
+        ),
+        VehicleProfile(
+            id = "veh_camper_van",
+            nickname = "Alpine Camper",
+            makeModel = "Sprinter AWD • Camper Van",
+            bodyStyle = VehicleBodyStyle.VAN,
+            drivetrain = "AWD",
+            fuelType = "Diesel",
+            accentColorHex = 0xFF2A5C48L,
+            isPreset = true
+        ),
+        VehicleProfile(
+            id = "veh_ridge_moto",
+            nickname = "Ridge Dual-Sport",
+            makeModel = "Africa Twin • Adventure Moto",
+            bodyStyle = VehicleBodyStyle.MOTO,
+            drivetrain = "2WD",
+            fuelType = "Gasoline",
+            accentColorHex = 0xFFB84A27L,
+            isPreset = true
+        )
+    )
 }
 
 data class CurrencyOption(
@@ -93,9 +177,10 @@ object CurrencyCatalog {
 data class UserPreferences(
     val distanceUnit: DistanceUnit = DistanceUnit.KM,
     val currencyCode: String = "PHP",
-    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val themeMode: ThemeMode = ThemeMode.LIGHT,
     val mapLayer: MapLayerType = MapLayerType.TOPO,
-    val activeTripId: String? = null
+    val activeTripId: String? = null,
+    val activeVehicleId: String = "veh_olive_suv"
 )
 
 data class RoutePoint(
@@ -253,7 +338,7 @@ data class FirestorePreferences(
     val displayName: String? = null,
     val distanceUnit: String = "KM",
     val currencyCode: String = "PHP",
-    val themeMode: String = "SYSTEM",
+    val themeMode: String = "LIGHT",
     val mapLayer: String = "TOPO",
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
@@ -429,6 +514,18 @@ object GeoUtils {
             String.format(Locale.US, "%dh %02dm", hours, minutes)
         } else {
             String.format(Locale.US, "%02dm %02ds", minutes, seconds)
+        }
+    }
+
+    fun formatMovingTime(durationMillis: Long): String {
+        val totalSeconds = (durationMillis / 1000L).coerceAtLeast(0L)
+        val hours = totalSeconds / 3600L
+        val minutes = (totalSeconds % 3600L) / 60L
+        val seconds = totalSeconds % 60L
+        return if (hours > 0) {
+            String.format(Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format(Locale.US, "%02d:%02d", minutes, seconds)
         }
     }
 }

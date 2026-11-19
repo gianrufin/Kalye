@@ -84,11 +84,7 @@ fun KalyeMapCanvas(
     onStopTapped: (TripStop) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val isDark = when (themeMode) {
-        ThemeMode.DARK -> true
-        ThemeMode.LIGHT -> false
-        ThemeMode.SYSTEM -> isSystemInDarkTheme()
-    }
+    val isDark = themeMode == ThemeMode.DARK
 
     val tileBitmaps = remember { mutableStateMapOf<String, Bitmap?>() }
     var tileTrigger by remember { mutableIntStateOf(0) }

@@ -1,5 +1,11 @@
 package com.example.ui.navigation
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,6 +21,7 @@ import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.OfflinePin
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -49,6 +56,7 @@ import com.example.ui.screens.ShareCardScreen
 import com.example.ui.screens.TrackScreen
 import com.example.ui.screens.TripDetailScreen
 import com.example.ui.screens.TripsScreen
+import com.example.ui.screens.VehicleGarageScreen
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -62,6 +70,9 @@ data object OfflineMapsRoute
 
 @Serializable
 data object SettingsRoute
+
+@Serializable
+data object GarageRoute
 
 @Serializable
 data class TripDetailRoute(val tripId: String)
@@ -110,6 +121,16 @@ fun KalyeMainScaffold(
             dest.hasRoute<SettingsRoute>()
     } == true
 
+    val navigateToTopTab: (Any) -> Unit = { route ->
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val useRail = maxWidth >= 680.dp
 
@@ -118,31 +139,27 @@ fun KalyeMainScaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
                 if (isTopLevel && !useRail) {
-                    NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ) {
-                        topTabs.forEach { tab ->
-                            val selected = currentDest?.hierarchy?.any { it.hasRoute(tab.route::class) } == true
-                            NavigationBarItem(
-                                selected = selected,
-                                onClick = {
-                                    navController.navigate(tab.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
-                                icon = {
-                                    Icon(
-                                        imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
-                                        contentDescription = tab.label
-                                    )
-                                },
-                                label = { Text(tab.label) },
-                                modifier = Modifier.testTag(tab.testTag)
-                            )
+                    androidx.compose.foundation.layout.Column {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        NavigationBar(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 0.dp
+                        ) {
+                            topTabs.forEach { tab ->
+                                val selected = currentDest?.hierarchy?.any { it.hasRoute(tab.route::class) } == true
+                                NavigationBarItem(
+                                    selected = selected,
+                                    onClick = { navigateToTopTab(tab.route) },
+                                    icon = {
+                                        Icon(
+                                            imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
+                                            contentDescription = tab.label
+                                        )
+                                    },
+                                    label = { Text(tab.label) },
+                                    modifier = Modifier.testTag(tab.testTag)
+                                )
+                            }
                         }
                     }
                 }
@@ -157,15 +174,7 @@ fun KalyeMainScaffold(
                             val selected = currentDest?.hierarchy?.any { it.hasRoute(tab.route::class) } == true
                             NavigationRailItem(
                                 selected = selected,
-                                onClick = {
-                                    navController.navigate(tab.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
+                                onClick = { navigateToTopTab(tab.route) },
                                 icon = {
                                     Icon(
                                         imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
@@ -179,9 +188,20 @@ fun KalyeMainScaffold(
                     }
                 }
 
+                val tabFadeIn = fadeIn(animationSpec = tween(190, easing = FastOutSlowInEasing))
+                val tabFadeOut = fadeOut(animationSpec = tween(150, easing = FastOutSlowInEasing))
+                val pushIn = slideInHorizontally(animationSpec = tween(240, easing = FastOutSlowInEasing)) { it / 5 } +
+                    fadeIn(animationSpec = tween(220))
+                val popOut = slideOutHorizontally(animationSpec = tween(220, easing = FastOutSlowInEasing)) { it / 5 } +
+                    fadeOut(animationSpec = tween(180))
+
                 NavHost(
                     navController = navController,
                     startDestination = TrackRoute,
+                    enterTransition = { tabFadeIn },
+                    exitTransition = { tabFadeOut },
+                    popEnterTransition = { tabFadeIn },
+                    popExitTransition = { tabFadeOut },
                     modifier = Modifier.weight(1f)
                 ) {
                     composable<TrackRoute> {
@@ -190,6 +210,9 @@ fun KalyeMainScaffold(
                             bottomBarPadding = if (useRail) PaddingValues(0.dp) else innerPadding,
                             onRideFinished = { tripId ->
                                 navController.navigate(TripDetailRoute(tripId))
+                            },
+                            onOpenGarage = {
+                                navController.navigate(GarageRoute)
                             }
                         )
                     }
@@ -201,13 +224,7 @@ fun KalyeMainScaffold(
                                 navController.navigate(TripDetailRoute(tripId))
                             },
                             onStartTrackRequested = {
-                                navController.navigate(TrackRoute) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
+                                navigateToTopTab(TrackRoute)
                             }
                         )
                     }
@@ -221,10 +238,29 @@ fun KalyeMainScaffold(
                         SettingsScreen(
                             viewModel = viewModel,
                             bottomBarPadding = if (useRail) PaddingValues(0.dp) else innerPadding,
-                            onSignedOut = onSignedOut
+                            onSignedOut = onSignedOut,
+                            onOpenGarage = {
+                                navController.navigate(GarageRoute)
+                            }
                         )
                     }
-                    composable<TripDetailRoute> { entry ->
+                    composable<GarageRoute>(
+                        enterTransition = { pushIn },
+                        popExitTransition = { popOut }
+                    ) {
+                        VehicleGarageScreen(
+                            viewModel = viewModel,
+                            onBack = { navController.popBackStack() },
+                            onStartDriveWithRig = {
+                                navController.popBackStack()
+                                navigateToTopTab(TrackRoute)
+                            }
+                        )
+                    }
+                    composable<TripDetailRoute>(
+                        enterTransition = { pushIn },
+                        popExitTransition = { popOut }
+                    ) { entry ->
                         val route = entry.toRoute<TripDetailRoute>()
                         TripDetailScreen(
                             tripId = route.tripId,
@@ -235,7 +271,10 @@ fun KalyeMainScaffold(
                             }
                         )
                     }
-                    composable<ShareCardRoute> { entry ->
+                    composable<ShareCardRoute>(
+                        enterTransition = { pushIn },
+                        popExitTransition = { popOut }
+                    ) { entry ->
                         val route = entry.toRoute<ShareCardRoute>()
                         ShareCardScreen(
                             tripId = route.tripId,

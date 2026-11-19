@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -22,10 +23,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CloudSync
+import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -64,12 +68,14 @@ import com.example.data.model.DistanceUnit
 import com.example.data.model.MapLayerType
 import com.example.data.model.ThemeMode
 import com.example.ui.KalyeViewModel
+import com.example.ui.components.VehicleRigIllustration
 
 @Composable
 fun SettingsScreen(
     viewModel: KalyeViewModel,
     bottomBarPadding: PaddingValues,
-    onSignedOut: () -> Unit
+    onSignedOut: () -> Unit,
+    onOpenGarage: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -77,6 +83,8 @@ fun SettingsScreen(
 
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val activeVehicle by viewModel.activeVehicle.collectAsStateWithLifecycle()
+    val vehicles by viewModel.vehicles.collectAsStateWithLifecycle()
 
     var showAddTagDialog by remember { mutableStateOf(false) }
     var newTagName by remember { mutableStateOf("") }
@@ -116,12 +124,73 @@ fun SettingsScreen(
             }
         }
 
+        // Vehicle Garage Quick Access Card
+        item {
+            Surface(
+                onClick = onOpenGarage,
+                shape = RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                tonalElevation = 1.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("open_garage_button")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 84.dp, height = 56.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        VehicleRigIllustration(
+                            bodyStyle = activeVehicle.bodyStyle,
+                            accentColor = Color(activeVehicle.accentColorHex),
+                            modifier = Modifier
+                                .fillMaxWidth(0.86f)
+                                .height(46.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "VEHICLE GARAGE (${vehicles.size})",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = activeVehicle.nickname,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "${activeVehicle.makeModel} • ${activeVehicle.fuelType}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                        contentDescription = "Open Vehicle Garage",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+
         // Google Account + Cloud Sync Card
         item {
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                tonalElevation = 1.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -185,12 +254,13 @@ fun SettingsScreen(
             }
         }
 
-        // Dark Mode & Battery Efficiency Toggle
+        // Light / Dark Appearance & Preferences Card
         item {
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                tonalElevation = 1.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -198,7 +268,7 @@ fun SettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "APPEARANCE & OLED BATTERY",
+                        text = "APPEARANCE (LIGHT / DARK)",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -208,6 +278,15 @@ fun SettingsScreen(
                                 selected = preferences.themeMode == mode,
                                 onClick = { viewModel.setThemeMode(mode) },
                                 shape = SegmentedButtonDefaults.itemShape(idx, ThemeMode.entries.size),
+                                icon = {
+                                    SegmentedButtonDefaults.Icon(active = preferences.themeMode == mode) {
+                                        Icon(
+                                            imageVector = if (mode == ThemeMode.DARK) Icons.Rounded.DarkMode else Icons.Rounded.LightMode,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                },
                                 label = { Text(mode.label) },
                                 modifier = Modifier.testTag("theme_mode_${mode.name.lowercase()}")
                             )
@@ -296,6 +375,7 @@ fun SettingsScreen(
             Surface(
                 shape = RoundedCornerShape(16.dp),
                 color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 tonalElevation = 1.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {

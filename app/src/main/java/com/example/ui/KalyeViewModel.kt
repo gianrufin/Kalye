@@ -13,6 +13,9 @@ import com.example.data.model.ThemeMode
 import com.example.data.model.TripStop
 import com.example.data.model.TripSummary
 import com.example.data.model.UserPreferences
+import com.example.data.model.VehicleBodyStyle
+import com.example.data.model.VehicleGarageDefaults
+import com.example.data.model.VehicleProfile
 import com.example.data.repository.KalyeRepository
 import com.example.location.GpsSignalStatus
 import com.example.location.KalyeLocationTracker
@@ -29,6 +32,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -53,6 +57,13 @@ class KalyeViewModel(
 
     val preferences: StateFlow<UserPreferences> = repository.preferencesFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), UserPreferences())
+
+    val vehicles: StateFlow<List<VehicleProfile>> = repository.vehiclesFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), VehicleGarageDefaults.presets)
+
+    val activeVehicle: StateFlow<VehicleProfile> = combine(vehicles, preferences) { list, prefs ->
+        list.firstOrNull { it.id == prefs.activeVehicleId } ?: list.first()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), VehicleGarageDefaults.presets.first())
 
     val tripsState: StateFlow<UiState<List<TripSummary>>> = repository.observeTrips(currentUserId)
         .map<List<TripSummary>, UiState<List<TripSummary>>> { UiState.Success(it) }
@@ -335,6 +346,49 @@ class KalyeViewModel(
     fun setMapLayer(layer: MapLayerType) {
         viewModelScope.launch {
             repository.updateMapLayer(layer, preferences.value, userDisplayName)
+        }
+    }
+
+    fun selectVehicle(vehicleId: String) {
+        viewModelScope.launch {
+            repository.selectVehicle(vehicleId)
+            val chosen = vehicles.value.firstOrNull { it.id == vehicleId }
+            if (chosen != null) {
+                _syncMessage.value = "Active rig: ${chosen.nickname}"
+            }
+        }
+    }
+
+    fun addVehicle(
+        nickname: String,
+        makeModel: String,
+        bodyStyle: VehicleBodyStyle,
+        drivetrain: String,
+        fuelType: String,
+        accentColorHex: Long
+    ) {
+        val cleanName = nickname.trim().ifBlank { bodyStyle.label }
+        val cleanModel = makeModel.trim().ifBlank { "${bodyStyle.label} • $drivetrain" }
+        val newVehicle = VehicleProfile(
+            id = "veh_${UUID.randomUUID().toString().replace("-", "").take(10)}",
+            nickname = cleanName,
+            makeModel = cleanModel,
+            bodyStyle = bodyStyle,
+            drivetrain = drivetrain,
+            fuelType = fuelType,
+            accentColorHex = accentColorHex,
+            isPreset = false
+        )
+        viewModelScope.launch {
+            repository.addVehicle(newVehicle)
+            _syncMessage.value = "Added $cleanName to Garage"
+        }
+    }
+
+    fun deleteVehicle(vehicleId: String) {
+        viewModelScope.launch {
+            repository.deleteVehicle(vehicleId)
+            _syncMessage.value = "Vehicle removed from Garage"
         }
     }
 

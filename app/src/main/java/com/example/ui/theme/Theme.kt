@@ -1,7 +1,8 @@
 package com.example.ui.theme
 
 import android.app.Activity
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -9,6 +10,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
@@ -81,15 +83,26 @@ val KalyeShapes = Shapes(
 
 @Composable
 fun KalyeTheme(
-    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    themeMode: ThemeMode = ThemeMode.LIGHT,
     content: @Composable () -> Unit
 ) {
-    val useDark = when (themeMode) {
-        ThemeMode.DARK -> true
-        ThemeMode.LIGHT -> false
-        ThemeMode.SYSTEM -> isSystemInDarkTheme()
-    }
-    val colorScheme = if (useDark) KalyeDarkColorScheme else KalyeLightColorScheme
+    val useDark = themeMode == ThemeMode.DARK
+    val targetScheme = if (useDark) KalyeDarkColorScheme else KalyeLightColorScheme
+
+    val animSpec = tween<Color>(durationMillis = 260)
+    val background by animateColorAsState(targetScheme.background, animSpec, label = "bg")
+    val surface by animateColorAsState(targetScheme.surface, animSpec, label = "surface")
+    val surfaceVariant by animateColorAsState(targetScheme.surfaceVariant, animSpec, label = "surfaceVar")
+    val onBackground by animateColorAsState(targetScheme.onBackground, animSpec, label = "onBg")
+    val onSurface by animateColorAsState(targetScheme.onSurface, animSpec, label = "onSurface")
+
+    val colorScheme = targetScheme.copy(
+        background = background,
+        surface = surface,
+        surfaceVariant = surfaceVariant,
+        onBackground = onBackground,
+        onSurface = onSurface
+    )
 
     val view = LocalView.current
     if (!view.isInEditMode) {

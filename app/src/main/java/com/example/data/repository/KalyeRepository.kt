@@ -41,6 +41,7 @@ class KalyeRepository(
     )
 
     val preferencesFlow: Flow<UserPreferences> = prefsRepo.preferencesFlow
+    val vehiclesFlow: Flow<List<com.example.data.model.VehicleProfile>> = prefsRepo.vehiclesFlow
 
     fun observeTrips(userId: String): Flow<List<TripSummary>> =
         dao.observeTrips(userId).map { list -> list.map { it.toDomain() } }
@@ -586,6 +587,18 @@ class KalyeRepository(
         prefsRepo.setCurrencyCode(remotePrefs.currencyCode)
         prefsRepo.setThemeMode(remotePrefs.themeMode)
         prefsRepo.setMapLayer(remotePrefs.mapLayer)
+    }
+
+    suspend fun selectVehicle(vehicleId: String) {
+        prefsRepo.setActiveVehicleId(vehicleId)
+    }
+
+    suspend fun addVehicle(vehicle: com.example.data.model.VehicleProfile) {
+        prefsRepo.addVehicle(vehicle)
+    }
+
+    suspend fun deleteVehicle(vehicleId: String) {
+        prefsRepo.deleteVehicle(vehicleId)
     }
 
     suspend fun getTrackPointsOnce(tripId: String): List<RoutePoint> =

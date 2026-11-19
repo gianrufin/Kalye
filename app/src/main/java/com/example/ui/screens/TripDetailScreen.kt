@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -202,8 +203,8 @@ fun TripDetailScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     MetricTile(
-                        label = "DURATION",
-                        value = GeoUtils.formatDuration(currentTrip.durationMillis),
+                        label = "MOVING TIME",
+                        value = GeoUtils.formatMovingTime(currentTrip.durationMillis),
                         modifier = Modifier.weight(1f)
                     )
                     MetricTile(
@@ -279,7 +280,8 @@ fun TripDetailScreen(
                 Surface(
                     shape = RoundedCornerShape(20.dp),
                     color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 2.dp,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    tonalElevation = 1.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
@@ -476,7 +478,8 @@ private fun MetricTile(label: String, value: String, modifier: Modifier = Modifi
         modifier = modifier,
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        tonalElevation = 1.dp
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Text(
@@ -516,6 +519,7 @@ private fun StopRowCard(
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         tonalElevation = 1.dp,
         modifier = Modifier.fillMaxWidth()
     ) {

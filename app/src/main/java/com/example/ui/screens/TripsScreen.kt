@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -285,7 +286,8 @@ private fun TripHistoryCard(
         onClick = onClick,
         shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        tonalElevation = 1.dp,
         modifier = Modifier
             .fillMaxWidth()
             .testTag("trip_card_${trip.id}")
@@ -362,8 +364,8 @@ private fun TripHistoryCard(
                     color = MaterialTheme.colorScheme.secondary
                 )
                 Text(
-                    text = GeoUtils.formatDuration(trip.durationMillis),
-                    style = MaterialTheme.typography.labelSmall,
+                    text = GeoUtils.formatMovingTime(trip.durationMillis),
+                    style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
@@ -438,7 +440,8 @@ private fun EmptyTripsCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        tonalElevation = 1.dp
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Image(

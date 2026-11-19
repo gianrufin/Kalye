@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -189,7 +190,8 @@ fun OfflineMapsScreen(
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                tonalElevation = 1.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -340,6 +342,7 @@ private fun OfflineRegionCard(
         onClick = onCenterMap,
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         tonalElevation = 1.dp,
         modifier = Modifier.fillMaxWidth()
     ) {

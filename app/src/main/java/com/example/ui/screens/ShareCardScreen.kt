@@ -1,6 +1,11 @@
 package com.example.ui.screens
 
 import android.graphics.Bitmap
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -8,8 +13,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -18,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -25,6 +29,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.GridOn
+import androidx.compose.material.icons.rounded.Landscape
+import androidx.compose.material.icons.rounded.Route
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,38 +41,48 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.R
 import com.example.data.model.DistanceUnit
 import com.example.data.model.GeoUtils
-import com.example.data.model.ShareCardTheme
+import com.example.data.model.ShareCardInkStyle
+import com.example.data.model.ShareCardLayout
 import com.example.export.ShareCardConfig
 import com.example.export.ShareCardRenderer
 import com.example.ui.KalyeViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ShareCardScreen(
     tripId: String,
@@ -71,6 +90,9 @@ fun ShareCardScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
     val trip by viewModel.observeTripById(tripId).collectAsStateWithLifecycle(initialValue = null)
     val dbPoints by viewModel.observePointsForTrip(tripId).collectAsStateWithLifecycle(initialValue = emptyList())
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
@@ -83,17 +105,15 @@ fun ShareCardScreen(
     var config by remember(preferences.distanceUnit) {
         mutableStateOf(
             ShareCardConfig(
-                theme = ShareCardTheme.TOPO_DARK,
+                layout = ShareCardLayout.CLASSIC_STACK,
+                inkStyle = ShareCardInkStyle.WHITE_TRANSPARENT,
                 distanceUnit = preferences.distanceUnit,
-                showRouteSilhouette = true,
-                showElevationGain = true,
-                showDuration = false,
-                showTitleAndTag = true,
-                showDate = true,
-                showCost = false
+                showTrailLine = true
             )
         )
     }
+
+    var previewOverPhoto by remember { mutableStateOf(true) }
 
     val currentTrip = trip
     if (currentTrip == null) {
@@ -116,153 +136,263 @@ fun ShareCardScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack, modifier = Modifier.testTag("share_card_back_button")) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "SOCIAL SHARE CARD",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "Customize PNG Overlay",
-                    style = MaterialTheme.typography.titleLarge
-                )
-            }
-        }
-
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { _ ->
         Column(
             modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .statusBarsPadding()
+                .navigationBarsPadding()
         ) {
-            // Live Strava-style PNG Preview
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.76f)
-                    .align(Alignment.CenterHorizontally)
-                    .aspectRatio(4f / 5f)
-                    .clip(RoundedCornerShape(22.dp))
-            ) {
-                if (config.theme == ShareCardTheme.TRANSPARENT_GLASS) {
-                    CheckerboardBackground(modifier = Modifier.fillMaxSize())
-                }
-                previewBitmap?.let { bmp ->
-                    Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = "Share card PNG preview",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-            }
-
-            // Card Visual Theme Selector
-            Text("CARD THEME", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                ShareCardTheme.entries.forEach { theme ->
+                IconButton(onClick = onBack, modifier = Modifier.testTag("share_card_back_button")) {
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "SHARE CARD STUDIO",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Transparent PNG Sticker",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                }
+                FilterChip(
+                    selected = !previewOverPhoto,
+                    onClick = { previewOverPhoto = !previewOverPhoto },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = if (previewOverPhoto) Icons.Rounded.Landscape else Icons.Rounded.GridOn,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    label = { Text(if (previewOverPhoto) "Photo" else "Alpha") },
+                    modifier = Modifier.testTag("toggle_preview_backdrop")
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Live Strava-style PNG Preview (photo overlay preview or alpha checkerboard)
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier
+                        .fillMaxWidth(0.76f)
+                        .align(Alignment.CenterHorizontally)
+                        .aspectRatio(4f / 5f)
+                ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        if (config.inkStyle.isTransparent) {
+                            AnimatedContent(
+                                targetState = previewOverPhoto,
+                                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                                label = "backdrop_transition"
+                            ) { overPhoto ->
+                                if (overPhoto) {
+                                    Box(modifier = Modifier.fillMaxSize()) {
+                                        Image(
+                                            painter = painterResource(id = R.drawable.img_overland_hero),
+                                            contentDescription = "Sample photo background",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(
+                                                    Brush.verticalGradient(
+                                                        listOf(
+                                                            Color.Black.copy(alpha = 0.25f),
+                                                            Color.Black.copy(alpha = 0.55f)
+                                                        )
+                                                    )
+                                                )
+                                        )
+                                    }
+                                } else {
+                                    CheckerboardBackground(modifier = Modifier.fillMaxSize())
+                                }
+                            }
+                        }
+
+                        AnimatedContent(
+                            targetState = previewBitmap,
+                            transitionSpec = { fadeIn() togetherWith fadeOut() },
+                            label = "card_preview_transition",
+                            modifier = Modifier.fillMaxSize()
+                        ) { bmp ->
+                            if (bmp != null) {
+                                Image(
+                                    bitmap = bmp.asImageBitmap(),
+                                    contentDescription = "Share card PNG preview",
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Layout Selector (4 distinct Strava-like arrangements of Distance, Elevation, Moving Time, Title, Trail Line)
+                Text(
+                    text = "STAT LAYOUT",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ShareCardLayout.entries.forEach { layout ->
+                        FilterChip(
+                            selected = config.layout == layout,
+                            onClick = { config = config.copy(layout = layout) },
+                            leadingIcon = if (config.layout == layout) {
+                                { Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            } else null,
+                            label = { Text(layout.label) },
+                            modifier = Modifier.testTag("layout_${layout.name.lowercase()}")
+                        )
+                    }
+                }
+
+                // Sticker Ink Style
+                Text(
+                    text = "STICKER INK",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ShareCardInkStyle.entries.forEach { ink ->
+                        FilterChip(
+                            selected = config.inkStyle == ink,
+                            onClick = { config = config.copy(inkStyle = ink) },
+                            label = { Text(ink.label) },
+                            modifier = Modifier.testTag("ink_${ink.name.lowercase()}")
+                        )
+                    }
+                }
+
+                // Mileage Unit + Trail Line Toggle
+                Text(
+                    text = "UNITS & TRAIL LINE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
+                        DistanceUnit.entries.forEachIndexed { index, unit ->
+                            SegmentedButton(
+                                selected = config.distanceUnit == unit,
+                                onClick = { config = config.copy(distanceUnit = unit) },
+                                shape = SegmentedButtonDefaults.itemShape(index, DistanceUnit.entries.size),
+                                label = { Text(unit.shortLabel.uppercase()) }
+                            )
+                        }
+                    }
+
                     FilterChip(
-                        selected = config.theme == theme,
-                        onClick = { config = config.copy(theme = theme) },
-                        label = { Text(theme.label) }
+                        selected = config.showTrailLine,
+                        onClick = { config = config.copy(showTrailLine = !config.showTrailLine) },
+                        leadingIcon = {
+                            Icon(Icons.Rounded.Route, contentDescription = null, modifier = Modifier.size(16.dp))
+                        },
+                        label = { Text("Trail Line") },
+                        modifier = Modifier.testTag("toggle_trail_line")
                     )
                 }
+
+                Spacer(modifier = Modifier.height(4.dp))
             }
 
-            // Unit Switcher right on the card studio (KM vs MI)
-            Text("MILEAGE UNIT", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                DistanceUnit.entries.forEachIndexed { index, unit ->
-                    SegmentedButton(
-                        selected = config.distanceUnit == unit,
-                        onClick = { config = config.copy(distanceUnit = unit) },
-                        shape = SegmentedButtonDefaults.itemShape(index, DistanceUnit.entries.size),
-                        label = { Text("${unit.label} (${unit.shortLabel})") }
-                    )
-                }
-            }
-
-            // Overlay Data Toggles
-            Text("DATA OVERLAYS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+            // Bottom Save & Share PNG Actions
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
-                FilterChip(
-                    selected = config.showRouteSilhouette,
-                    onClick = { config = config.copy(showRouteSilhouette = !config.showRouteSilhouette) },
-                    label = { Text("Route Map") }
-                )
-                FilterChip(
-                    selected = config.showElevationGain,
-                    onClick = { config = config.copy(showElevationGain = !config.showElevationGain) },
-                    label = { Text("Elevation") }
-                )
-                FilterChip(
-                    selected = config.showDuration,
-                    onClick = { config = config.copy(showDuration = !config.showDuration) },
-                    label = { Text("Duration") }
-                )
-                FilterChip(
-                    selected = config.showTitleAndTag,
-                    onClick = { config = config.copy(showTitleAndTag = !config.showTitleAndTag) },
-                    label = { Text("Title & Tag") }
-                )
-                FilterChip(
-                    selected = config.showDate,
-                    onClick = { config = config.copy(showDate = !config.showDate) },
-                    label = { Text("Date") }
-                )
-                FilterChip(
-                    selected = config.showCost,
-                    onClick = { config = config.copy(showCost = !config.showCost) },
-                    label = { Text("Trip Cost") }
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-        }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                val res = withContext(Dispatchers.IO) {
+                                    ShareCardRenderer.savePngToGallery(context, currentTrip, effectivePoints, config)
+                                }
+                                res.onSuccess { filename ->
+                                    snackbarHostState.showSnackbar("Saved $filename to Pictures/Kalye")
+                                }.onFailure { err ->
+                                    snackbarHostState.showSnackbar(err.message ?: "Unable to save PNG")
+                                }
+                            }
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(54.dp)
+                            .testTag("save_png_card_button")
+                    ) {
+                        Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Save PNG")
+                    }
 
-        // Bottom Export PNG CTA
-        Button(
-            onClick = {
-                ShareCardRenderer.exportAndSharePng(
-                    context = context,
-                    trip = currentTrip,
-                    points = effectivePoints,
-                    config = config
-                )
-            },
-            shape = RoundedCornerShape(18.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 14.dp)
-                .height(56.dp)
-                .testTag("export_png_card_button")
-        ) {
-            Icon(Icons.Rounded.Share, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Export & Share PNG (1080×1350)", style = MaterialTheme.typography.titleMedium)
+                    Button(
+                        onClick = {
+                            ShareCardRenderer.exportAndSharePng(
+                                context = context,
+                                trip = currentTrip,
+                                points = effectivePoints,
+                                config = config
+                            )
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .weight(1.3f)
+                            .height(54.dp)
+                            .testTag("export_png_card_button")
+                    ) {
+                        Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Share PNG", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
         }
     }
 }
@@ -277,7 +407,7 @@ private fun CheckerboardBackground(modifier: Modifier = Modifier) {
             for (c in 0..cols) {
                 val dark = (r + c) % 2 == 0
                 drawRect(
-                    color = if (dark) Color(0xFF2B2F2B) else Color(0xFF3E443E),
+                    color = if (dark) Color(0xFF282D29) else Color(0xFF3C433E),
                     topLeft = Offset(c * cell, r * cell),
                     size = Size(cell, cell)
                 )

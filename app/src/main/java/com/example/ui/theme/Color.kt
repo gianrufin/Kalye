@@ -2,52 +2,52 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Light Mode — Sunlit Topo (soft warm parchment with crisp high-contrast ink)
-val LightBackground = Color(0xFFF6F4EE)
+// Light Mode — Warm Topo Parchment (soft cream paper with deep pine & overland amber accents)
+val LightBackground = Color(0xFFF5F2EB)
 val LightSurface = Color(0xFFFFFFFF)
-val LightSurfaceVariant = Color(0xFFECE8DD)
-val LightSurfaceElevated = Color(0xFFFDFCF9)
-val LightOnBackground = Color(0xFF1A1C19)
-val LightOnSurface = Color(0xFF1A1C19)
-val LightOnSurfaceVariant = Color(0xFF565952)
-val LightOutline = Color(0xFFD6D1C4)
-val LightOutlineVariant = Color(0xFFE6E1D6)
+val LightSurfaceVariant = Color(0xFFECE7DB)
+val LightSurfaceElevated = Color(0xFFFAF8F3)
+val LightOnBackground = Color(0xFF151916)
+val LightOnSurface = Color(0xFF151916)
+val LightOnSurfaceVariant = Color(0xFF565D56)
+val LightOutline = Color(0xFFD5CFC1)
+val LightOutlineVariant = Color(0xFFE5E0D4)
 
-val LightPrimary = Color(0xFFB84A27) // Canyon Terracotta
+val LightPrimary = Color(0xFFC86428) // Overland Terracotta Amber
 val LightOnPrimary = Color(0xFFFFFFFF)
-val LightPrimaryContainer = Color(0xFFF9DDD2)
-val LightOnPrimaryContainer = Color(0xFF431305)
+val LightPrimaryContainer = Color(0xFFF9E2D4)
+val LightOnPrimaryContainer = Color(0xFF421A05)
 
-val LightSecondary = Color(0xFF2A5C48) // Alpine Pine
+val LightSecondary = Color(0xFF1E4D3B) // Alpine Forest Pine
 val LightOnSecondary = Color(0xFFFFFFFF)
-val LightSecondaryContainer = Color(0xFFD3E8DC)
-val LightOnSecondaryContainer = Color(0xFF0E291E)
+val LightSecondaryContainer = Color(0xFFD6E8DD)
+val LightOnSecondaryContainer = Color(0xFF0B271C)
 
-val LightTertiary = Color(0xFF9F6410) // Overland Amber
+val LightTertiary = Color(0xFF9E6414) // Trail Brass
 val LightOnTertiary = Color(0xFFFFFFFF)
-val LightTertiaryContainer = Color(0xFFF7E4C1)
+val LightTertiaryContainer = Color(0xFFF6E4C4)
 val LightOnTertiaryContainer = Color(0xFF331D00)
 
 // Dark Mode — Night Expedition (OLED pitch basalt for battery efficiency)
-val DarkBackground = Color(0xFF0B0D0B)
-val DarkSurface = Color(0xFF131613)
-val DarkSurfaceVariant = Color(0xFF1D221D)
-val DarkSurfaceElevated = Color(0xFF232923)
-val DarkOnBackground = Color(0xFFF1EFE9)
-val DarkOnSurface = Color(0xFFF1EFE9)
-val DarkOnSurfaceVariant = Color(0xFFA9AEA4)
-val DarkOutline = Color(0xFF343B34)
-val DarkOutlineVariant = Color(0xFF252A25)
+val DarkBackground = Color(0xFF0A0D0B)
+val DarkSurface = Color(0xFF121714)
+val DarkSurfaceVariant = Color(0xFF1B221E)
+val DarkSurfaceElevated = Color(0xFF222A25)
+val DarkOnBackground = Color(0xFFF2EFE8)
+val DarkOnSurface = Color(0xFFF2EFE8)
+val DarkOnSurfaceVariant = Color(0xFFA7B0A7)
+val DarkOutline = Color(0xFF313933)
+val DarkOutlineVariant = Color(0xFF222924)
 
-val DarkPrimary = Color(0xFFE86F48) // Warm Terracotta Ember
-val DarkOnPrimary = Color(0xFF1E0802)
-val DarkPrimaryContainer = Color(0xFF561D0B)
-val DarkOnPrimaryContainer = Color(0xFFFFDBD0)
+val DarkPrimary = Color(0xFFE87842) // Ember Terracotta
+val DarkOnPrimary = Color(0xFF1F0902)
+val DarkPrimaryContainer = Color(0xFF53210B)
+val DarkOnPrimaryContainer = Color(0xFFFFDDD0)
 
-val DarkSecondary = Color(0xFF5BB28A) // Sage Pine
+val DarkSecondary = Color(0xFF5AB88E) // Sage Pine
 val DarkOnSecondary = Color(0xFF062116)
-val DarkSecondaryContainer = Color(0xFF1B3F30)
-val DarkOnSecondaryContainer = Color(0xFFCBEAD9)
+val DarkSecondaryContainer = Color(0xFF183D2E)
+val DarkOnSecondaryContainer = Color(0xFFCAEBDA)
 
 val DarkTertiary = Color(0xFFE5A93B) // Amber Compass
 val DarkOnTertiary = Color(0xFF261800)

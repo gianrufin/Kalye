@@ -110,4 +110,35 @@ class KalyeUnitTest {
         assertTrue(csv.contains("\"Batangas, Calapan Ferry Run\""))
         assertTrue(csv.contains("2800.00"))
     }
+
+    @Test
+    fun `share card filename includes distinct date and time`() {
+        val t1 = 1700000000000L
+        val t2 = 1700000065000L
+        val f1 = com.example.export.ShareCardRenderer.buildExportFilename(t1)
+        val f2 = com.example.export.ShareCardRenderer.buildExportFilename(t2)
+        assertTrue(Regex("^kalye_\\d{8}_\\d{6}\\.png$").matches(f1))
+        assertTrue(f1 != f2)
+    }
+
+    @Test
+    fun `theme mode only exposes light and dark and maps legacy system to light`() {
+        val entries = com.example.data.model.ThemeMode.entries
+        assertEquals(2, entries.size)
+        assertEquals(com.example.data.model.ThemeMode.LIGHT, com.example.data.model.ThemeMode.safeFrom("SYSTEM"))
+        assertEquals(com.example.data.model.ThemeMode.DARK, com.example.data.model.ThemeMode.safeFrom("DARK"))
+    }
+
+    @Test
+    fun `moving time formats hh_mm_ss and mm_ss cleanly`() {
+        assertEquals("08:05", GeoUtils.formatMovingTime(485_000L))
+        assertEquals("2:11:26", GeoUtils.formatMovingTime(7_886_000L))
+    }
+
+    @Test
+    fun `vehicle garage presets provide valid overland rigs`() {
+        val presets = com.example.data.model.VehicleGarageDefaults.presets
+        assertTrue(presets.size >= 3)
+        assertTrue(presets.any { it.nickname == "Olive 4x4 SUV" })
+    }
 }
