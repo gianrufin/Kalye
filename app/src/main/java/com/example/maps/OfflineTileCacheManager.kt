@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
+import com.example.BuildConfig
 import com.example.data.model.MapLayerType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -16,6 +17,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import kotlin.math.PI
 import kotlin.math.asinh
@@ -41,6 +43,14 @@ class OfflineTileCacheManager(context: Context) {
         if (!exists()) mkdirs()
     }
 
+    private val configuredApiKey: String? = normalizeApiKey(BuildConfig.MAP_TILES_API_KEY)
+
+    @Volatile
+    private var preferredProviderIndex: Int = 0
+
+    @Volatile
+    private var cacheSignatureVerified: Boolean = false
+
     private val memoryCache = object : LruCache<String, Bitmap>(80) {}
 
     private val client = OkHttpClient.Builder()
@@ -58,6 +68,7 @@ class OfflineTileCacheManager(context: Context) {
     }
 
     suspend fun loadTile(layer: MapLayerType, isDark: Boolean, z: Int, x: Int, y: Int): Bitmap? = withContext(Dispatchers.IO) {
+        ensureCacheMatchesCurrentConfig()
         val key = tileKey(isDark, z, x, y)
         memoryCache.get(key)?.let { return@withContext it }
 
@@ -74,13 +85,28 @@ class OfflineTileCacheManager(context: Context) {
         }
 
         val bytes = fetchRemoteTileBytes(isDark, z, x, y) ?: return@withContext null
+        val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@withContext null
         file.parentFile?.mkdirs()
         FileOutputStream(file).use { it.write(bytes) }
-        val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-        if (bmp != null) {
-            memoryCache.put(key, bmp)
-        }
+        memoryCache.put(key, bmp)
         bmp
+    }
+
+    private fun ensureCacheMatchesCurrentConfig() {
+        if (cacheSignatureVerified) return
+        synchronized(this) {
+            if (cacheSignatureVerified) return
+            val sigFile = File(cacheRoot, ".tile_config_sig")
+            val expectedSig = "v2:${configuredApiKey?.hashCode() ?: 0}"
+            val currentSig = if (sigFile.exists()) sigFile.readText().trim() else ""
+            if (currentSig != expectedSig) {
+                File(cacheRoot, "street_dark").deleteRecursively()
+                File(cacheRoot, "street_light").deleteRecursively()
+                memoryCache.evictAll()
+                sigFile.writeText(expectedSig)
+            }
+            cacheSignatureVerified = true
+        }
     }
 
     private fun decodeFile(file: File): Bitmap? {
@@ -97,19 +123,36 @@ class OfflineTileCacheManager(context: Context) {
     }
 
     private fun fetchRemoteTileBytes(isDark: Boolean, z: Int, x: Int, y: Int): ByteArray? {
-        val style = if (isDark) "dark_all" else "light_all"
-        val url = "https://basemaps.cartocdn.com/$style/$z/$x/$y.png"
-        val request = Request.Builder()
-            .url(url)
-            .header("User-Agent", "KalyeLocationTracker/1.0 (Android)")
-            .build()
-        return try {
-            client.newCall(request).execute().use { resp ->
-                if (resp.isSuccessful) resp.body?.bytes() else null
+        val urls = buildCandidateTileUrls(isDark, z, x, y, configuredApiKey)
+        if (urls.isEmpty()) return null
+
+        val startIndex = preferredProviderIndex.coerceIn(0, urls.lastIndex)
+        val orderedIndices = listOf(startIndex) + urls.indices.filter { it != startIndex }
+
+        for (idx in orderedIndices) {
+            val request = Request.Builder()
+                .url(urls[idx])
+                .header("User-Agent", "KalyeLocationTracker/1.0 (Android)")
+                .build()
+            val bytes = try {
+                client.newCall(request).execute().use { resp ->
+                    val contentType = resp.header("Content-Type")?.lowercase().orEmpty()
+                    val isImage = contentType.isEmpty() || contentType.startsWith("image/")
+                    if (resp.isSuccessful && isImage) {
+                        resp.body?.bytes()?.takeIf { it.size > 128 }
+                    } else {
+                        null
+                    }
+                }
+            } catch (_: Exception) {
+                null
             }
-        } catch (_: Exception) {
-            null
+            if (bytes != null) {
+                preferredProviderIndex = idx
+                return bytes
+            }
         }
+        return null
     }
 
     fun estimateTileList(
@@ -155,6 +198,7 @@ class OfflineTileCacheManager(context: Context) {
             emit(RegionDownloadProgress(0, 0, 0L, isFinished = true))
             return@flow
         }
+        ensureCacheMatchesCurrentConfig()
         var downloaded = 0
         var totalBytes = 0L
         val semaphore = Semaphore(4)
@@ -181,16 +225,53 @@ class OfflineTileCacheManager(context: Context) {
     }.flowOn(Dispatchers.IO)
 
     suspend fun getTotalDiskUsageBytes(): Long = withContext(Dispatchers.IO) {
-        cacheRoot.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        cacheRoot.walkTopDown()
+            .filter { it.isFile && it.name != ".tile_config_sig" }
+            .sumOf { it.length() }
     }
 
     suspend fun clearAllTiles() = withContext(Dispatchers.IO) {
         memoryCache.evictAll()
         cacheRoot.deleteRecursively()
         cacheRoot.mkdirs()
+        cacheSignatureVerified = false
     }
 
     companion object {
+        private const val PLACEHOLDER_MAP_KEY = "YOUR_MAP_TILES_API_KEY"
+
+        fun normalizeApiKey(rawKey: String?): String? {
+            val trimmed = rawKey?.trim().orEmpty()
+            return trimmed.takeIf { it.isNotEmpty() && it != PLACEHOLDER_MAP_KEY }
+        }
+
+        fun buildCandidateTileUrls(
+            isDark: Boolean,
+            z: Int,
+            x: Int,
+            y: Int,
+            apiKey: String?
+        ): List<String> {
+            val cartoStyle = if (isDark) "dark_all" else "light_all"
+            val cartoFallback = "https://basemaps.cartocdn.com/$cartoStyle/$z/$x/$y.png"
+            val cleanKey = normalizeApiKey(apiKey) ?: return listOf(cartoFallback)
+            if (cleanKey.startsWith("AIza")) {
+                return listOf(cartoFallback)
+            }
+            val encodedKey = URLEncoder.encode(cleanKey, "UTF-8")
+            val stadiaStyle = if (isDark) "alidade_smooth_dark" else "alidade_smooth"
+            val maptilerStyle = if (isDark) "dataviz-dark" else "dataviz-light"
+            val geoapifyStyle = if (isDark) "dark-matter" else "positron"
+            val thunderforestStyle = if (isDark) "transport-dark" else "atlas"
+            return listOf(
+                "https://tiles.stadiamaps.com/tiles/$stadiaStyle/$z/$x/$y.png?api_key=$encodedKey",
+                "https://api.maptiler.com/maps/$maptilerStyle/256/$z/$x/$y.png?key=$encodedKey",
+                "https://maps.geoapify.com/v1/tile/$geoapifyStyle/$z/$x/$y.png?apiKey=$encodedKey",
+                "https://tile.thunderforest.com/$thunderforestStyle/$z/$x/$y.png?apikey=$encodedKey",
+                cartoFallback
+            )
+        }
+
         fun latLonToTile(lat: Double, lon: Double, zoom: Int): Pair<Int, Int> {
             val n = 2.0.pow(zoom)
             val x = floor((lon + 180.0) / 360.0 * n).toInt().coerceIn(0, n.toInt() - 1)

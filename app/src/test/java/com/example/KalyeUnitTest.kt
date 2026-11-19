@@ -272,4 +272,31 @@ class KalyeUnitTest {
         )
         assertTrue(com.example.update.SemVer.parse(parsed.versionName)!! > com.example.update.SemVer.parse("1.0.1")!!)
     }
+
+    @Test
+    fun `map tile URL builder ignores placeholder key and includes authenticated endpoints when set`() {
+        assertEquals(
+            null,
+            com.example.maps.OfflineTileCacheManager.normalizeApiKey("YOUR_MAP_TILES_API_KEY")
+        )
+        val unauthUrls = com.example.maps.OfflineTileCacheManager.buildCandidateTileUrls(
+            isDark = true,
+            z = 12,
+            x = 100,
+            y = 200,
+            apiKey = "YOUR_MAP_TILES_API_KEY"
+        )
+        assertEquals(1, unauthUrls.size)
+        assertTrue(unauthUrls.first().contains("basemaps.cartocdn.com/dark_all/12/100/200.png"))
+
+        val authUrls = com.example.maps.OfflineTileCacheManager.buildCandidateTileUrls(
+            isDark = false,
+            z = 12,
+            x = 100,
+            y = 200,
+            apiKey = "test-stadia-key-123"
+        )
+        assertTrue(authUrls.first().contains("tiles.stadiamaps.com/tiles/alidade_smooth/12/100/200.png?api_key=test-stadia-key-123"))
+        assertTrue(authUrls.any { it.contains("api.maptiler.com/maps/dataviz-light/256/12/100/200.png?key=test-stadia-key-123") })
+    }
 }

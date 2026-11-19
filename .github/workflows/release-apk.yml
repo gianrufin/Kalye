@@ -127,6 +127,15 @@ jobs:
             echo "::warning::app/google-services.json not found. APK will compile, but add GOOGLE_SERVICES_JSON secret for Firebase & Google Sign-In."
           fi
 
+      - name: Prepare environment secrets
+        env:
+          MAP_TILES_API_KEY: ${{ secrets.MAP_TILES_API_KEY }}
+        run: |
+          if [ -n "$MAP_TILES_API_KEY" ]; then
+            printf 'MAP_TILES_API_KEY=%s\n' "$MAP_TILES_API_KEY" > .env
+            echo "Injected MAP_TILES_API_KEY into .env for build"
+          fi
+
       - name: Run unit tests
         env:
           APP_VERSION_NAME: ${{ steps.version.outputs.version_name }}
