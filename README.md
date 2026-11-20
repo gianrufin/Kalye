@@ -24,8 +24,8 @@
 The static landing page lives in `docs/` (`docs/index.html`, `docs/styles.css`, `docs/app.js`, and `docs/assets/screenshots/*.png`) and is automatically deployed via `.github/workflows/deploy-pages.yml`.
 
 ### Publishing on GitHub Pages
-1. Push this repository (`docs/` and `.github/workflows/deploy-pages.yml`) to `main` (or `master`) on GitHub.
-2. Open your repository on GitHub → **Settings → Pages → Build and deployment → Source** and select **GitHub Actions**.
+1. Make sure the repository visibility is **Public** under **Settings → General → Danger Zone** (GitHub Free accounts cannot enable GitHub Pages on private repositories).
+2. Open [**Settings → Pages**](https://github.com/gianrufin/Kalye/settings/pages), and under **Build and deployment → Source**, select **GitHub Actions** (required for `actions/configure-pages@v5` — otherwise `Setup GitHub Pages` returns `HttpError: Not Found`).
 3. Re-run **Actions → Deploy Landing Page to GitHub Pages** (or push any update in `docs/`) and your site will go live at `https://gianrufin.github.io/Kalye/`.
 
 ---
