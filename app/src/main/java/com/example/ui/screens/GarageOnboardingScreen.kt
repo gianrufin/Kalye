@@ -48,10 +48,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -167,30 +169,37 @@ fun GarageOnboardingScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(132.dp)
-                            .padding(14.dp)
+                            .height(148.dp)
+                            .padding(12.dp)
                             .clip(RoundedCornerShape(16.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)),
                         contentAlignment = Alignment.Center
                     ) {
                         val ridgeColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                        val roadColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.30f)
                         Canvas(modifier = Modifier.fillMaxSize()) {
                             val path = Path().apply {
-                                moveTo(0f, size.height * 0.78f)
-                                lineTo(size.width * 0.22f, size.height * 0.44f)
-                                lineTo(size.width * 0.40f, size.height * 0.62f)
-                                lineTo(size.width * 0.68f, size.height * 0.26f)
-                                lineTo(size.width, size.height * 0.68f)
+                                moveTo(0f, size.height * 0.76f)
+                                lineTo(size.width * 0.22f, size.height * 0.42f)
+                                lineTo(size.width * 0.40f, size.height * 0.60f)
+                                lineTo(size.width * 0.68f, size.height * 0.24f)
+                                lineTo(size.width, size.height * 0.66f)
                             }
                             drawPath(path, color = ridgeColor, style = Stroke(width = 3f))
+                            drawLine(
+                                color = roadColor,
+                                start = Offset(size.width * 0.08f, size.height * 0.85f),
+                                end = Offset(size.width * 0.92f, size.height * 0.85f),
+                                strokeWidth = 2.5f
+                            )
                         }
                         VehicleRigIllustration(
                             bodyStyle = bodyStyle,
                             accentColor = Color(colorHex),
                             rigGear = rigGear,
                             modifier = Modifier
-                                .fillMaxWidth(0.76f)
-                                .height(106.dp)
+                                .fillMaxSize()
+                                .padding(horizontal = 20.dp, vertical = 8.dp)
                         )
                     }
                 }
@@ -301,24 +310,31 @@ fun GarageOnboardingScreen(
                     color = MaterialTheme.colorScheme.primary
                 )
                 FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     colorSwatches.forEach { hex ->
                         val selected = colorHex == hex
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
-                                .background(Color(hex))
-                                .border(
-                                    width = if (selected) 2.5.dp else 1.dp,
-                                    color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                                    shape = CircleShape
-                                )
-                                .clickable { colorHex = hex }
-                                .testTag("onboarding_color_${java.lang.Long.toHexString(hex)}")
-                        )
+                                .clickable(role = Role.Button) { colorHex = hex }
+                                .testTag("onboarding_color_${java.lang.Long.toHexString(hex)}"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(hex))
+                                    .border(
+                                        width = if (selected) 2.5.dp else 1.dp,
+                                        color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+                                        shape = CircleShape
+                                    )
+                            )
+                        }
                     }
                 }
 

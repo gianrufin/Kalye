@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -186,8 +187,8 @@ fun RigAvatarBadge(
                 accentColor = Color(vehicle.accentColorHex),
                 rigGear = vehicle.rigGear,
                 modifier = Modifier
-                    .fillMaxSize(0.78f)
-                    .padding(top = if (spec.callsign.isNotBlank()) 0.dp else 2.dp)
+                    .fillMaxSize(0.82f)
+                    .offset(y = if (spec.callsign.isNotBlank() && size >= 54.dp) (-size * 0.05f) else 0.dp)
             )
         } else {
             Icon(
@@ -393,7 +394,7 @@ fun RigAvatarStudioSheet(
                                     bodyStyle = veh.bodyStyle,
                                     accentColor = Color(veh.accentColorHex),
                                     rigGear = veh.rigGear,
-                                    modifier = Modifier.size(width = 48.dp, height = 30.dp)
+                                    modifier = Modifier.size(width = 58.dp, height = 30.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(

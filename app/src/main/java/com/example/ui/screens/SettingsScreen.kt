@@ -164,7 +164,7 @@ fun SettingsScreen(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(width = 84.dp, height = 56.dp)
+                            .size(width = 92.dp, height = 52.dp)
                             .clip(RoundedCornerShape(14.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                         contentAlignment = Alignment.Center
@@ -175,8 +175,8 @@ fun SettingsScreen(
                                 accentColor = Color(currentRig.accentColorHex),
                                 rigGear = currentRig.rigGear,
                                 modifier = Modifier
-                                    .fillMaxWidth(0.88f)
-                                    .height(48.dp)
+                                    .fillMaxSize()
+                                    .padding(horizontal = 5.dp, vertical = 4.dp)
                             )
                         } else {
                             Icon(

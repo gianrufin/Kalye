@@ -80,6 +80,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -523,12 +524,22 @@ fun TrackScreen(
                                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            VehicleRigIllustration(
-                                                bodyStyle = currentRig.bodyStyle,
-                                                accentColor = Color(currentRig.accentColorHex),
-                                                rigGear = currentRig.rigGear,
-                                                modifier = Modifier.size(width = 56.dp, height = 34.dp)
-                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(width = 72.dp, height = 40.dp)
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                VehicleRigIllustration(
+                                                    bodyStyle = currentRig.bodyStyle,
+                                                    accentColor = Color(currentRig.accentColorHex),
+                                                    rigGear = currentRig.rigGear,
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .padding(horizontal = 4.dp, vertical = 3.dp)
+                                                )
+                                            }
                                             Spacer(modifier = Modifier.width(10.dp))
                                             Column(modifier = Modifier.weight(1f)) {
                                                 Text(
@@ -906,12 +917,22 @@ fun TrackScreen(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            VehicleRigIllustration(
-                                bodyStyle = veh.bodyStyle,
-                                accentColor = Color(veh.accentColorHex),
-                                rigGear = veh.rigGear,
-                                modifier = Modifier.size(width = 62.dp, height = 38.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(width = 78.dp, height = 42.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                VehicleRigIllustration(
+                                    bodyStyle = veh.bodyStyle,
+                                    accentColor = Color(veh.accentColorHex),
+                                    rigGear = veh.rigGear,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 4.dp, vertical = 3.dp)
+                                )
+                            }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(veh.nickname, style = MaterialTheme.typography.titleMedium)

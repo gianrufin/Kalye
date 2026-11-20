@@ -24,11 +24,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -40,6 +43,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Edit
@@ -51,6 +55,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -67,12 +72,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.DistanceUnit
 import com.example.data.model.GeoUtils
@@ -223,29 +232,36 @@ fun VehicleGarageScreen(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(144.dp)
+                                        .height(152.dp)
                                         .clip(RoundedCornerShape(18.dp))
                                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     val ridgeColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                                    val roadColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.30f)
                                     Canvas(modifier = Modifier.fillMaxSize()) {
                                         val path = Path().apply {
-                                            moveTo(0f, size.height * 0.78f)
-                                            lineTo(size.width * 0.22f, size.height * 0.44f)
-                                            lineTo(size.width * 0.40f, size.height * 0.62f)
-                                            lineTo(size.width * 0.68f, size.height * 0.26f)
-                                            lineTo(size.width, size.height * 0.68f)
+                                            moveTo(0f, size.height * 0.76f)
+                                            lineTo(size.width * 0.22f, size.height * 0.42f)
+                                            lineTo(size.width * 0.40f, size.height * 0.60f)
+                                            lineTo(size.width * 0.68f, size.height * 0.24f)
+                                            lineTo(size.width, size.height * 0.66f)
                                         }
                                         drawPath(path, color = ridgeColor, style = Stroke(width = 3f))
+                                        drawLine(
+                                            color = roadColor,
+                                            start = Offset(size.width * 0.08f, size.height * 0.85f),
+                                            end = Offset(size.width * 0.92f, size.height * 0.85f),
+                                            strokeWidth = 2.5f
+                                        )
                                     }
                                     VehicleRigIllustration(
                                         bodyStyle = hero.bodyStyle,
                                         accentColor = Color(hero.accentColorHex),
                                         rigGear = hero.rigGear,
                                         modifier = Modifier
-                                            .fillMaxWidth(0.78f)
-                                            .height(124.dp)
+                                            .fillMaxSize()
+                                            .padding(horizontal = 24.dp, vertical = 10.dp)
                                     )
                                 }
 
@@ -618,7 +634,7 @@ private fun VehicleListCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(width = 76.dp, height = 52.dp)
+                    .size(width = 92.dp, height = 50.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)),
                 contentAlignment = Alignment.Center
@@ -628,8 +644,8 @@ private fun VehicleListCard(
                     accentColor = Color(vehicle.accentColorHex),
                     rigGear = vehicle.rigGear,
                     modifier = Modifier
-                        .fillMaxWidth(0.90f)
-                        .height(44.dp)
+                        .fillMaxSize()
+                        .padding(horizontal = 5.dp, vertical = 4.dp)
                 )
             }
 
@@ -738,150 +754,237 @@ private fun AddEditVehicleDialog(
         )
     }
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (existing == null) "Add Custom Rig" else "Edit ${existing.nickname}") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Box(
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .widthIn(max = 520.dp)
+                .heightIn(max = 760.dp)
+                .imePadding()
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(92.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
+                        .padding(start = 20.dp, end = 10.dp, top = 14.dp, bottom = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    VehicleRigIllustration(
-                        bodyStyle = bodyStyle,
-                        accentColor = Color(colorHex),
-                        rigGear = rigGear,
-                        modifier = Modifier
-                            .fillMaxWidth(0.74f)
-                            .height(74.dp)
-                    )
-                }
-
-                OutlinedTextField(
-                    value = nickname,
-                    onValueChange = { nickname = it },
-                    label = { Text("Rig Nickname (e.g., Desert Jimny)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("vehicle_nickname_input")
-                )
-
-                OutlinedTextField(
-                    value = makeModel,
-                    onValueChange = { makeModel = it },
-                    label = { Text("Make & Model (e.g., Suzuki Jimny)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("vehicle_model_input")
-                )
-
-                OutlinedTextField(
-                    value = odometerInput,
-                    onValueChange = { odometerInput = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                    label = {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            if (distanceUnit == DistanceUnit.MI) "Base Odometer (mi)"
-                            else "Base Odometer (km)"
+                            text = if (existing == null) "GARAGE STUDIO" else "EDIT VEHICLE",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
                         )
-                    },
-                    placeholder = { Text("0") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    leadingIcon = { Icon(Icons.Rounded.Speed, contentDescription = null) },
-                    modifier = Modifier.fillMaxWidth().testTag("vehicle_odometer_input")
-                )
-
-                Text("BODY STYLE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    VehicleBodyStyle.entries.forEach { style ->
-                        FilterChip(
-                            selected = bodyStyle == style,
-                            onClick = { bodyStyle = style },
-                            label = { Text(style.label) },
-                            modifier = Modifier.testTag("garage_style_${style.name.lowercase()}")
+                        Text(
+                            text = if (existing == null) "Add Custom Rig" else existing.nickname,
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Close")
                     }
                 }
 
-                Text("RIG GEAR & TRIM", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    VehicleRigGear.entries.forEach { gear ->
-                        FilterChip(
-                            selected = rigGear == gear,
-                            onClick = { rigGear = gear },
-                            label = { Text(gear.label) },
-                            modifier = Modifier.testTag("garage_gear_${gear.name.lowercase()}")
-                        )
-                    }
-                }
-
-                Text("DRIVETRAIN & FUEL", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("4x4", "AWD", "FWD", "2WD").forEach { dt ->
-                        FilterChip(
-                            selected = drivetrain == dt,
-                            onClick = { drivetrain = dt },
-                            label = { Text(dt) }
-                        )
-                    }
-                    listOf("Diesel", "Gasoline", "Hybrid", "EV").forEach { fuel ->
-                        FilterChip(
-                            selected = fuelType == fuel,
-                            onClick = { fuelType = fuel },
-                            label = { Text(fuel) }
-                        )
-                    }
-                }
-
-                Text("PAINT COLOR", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    colorSwatches.forEach { hex ->
-                        val selected = colorHex == hex
-                        Box(
+                    // Balanced 2.2:1 Studio Stage for Live Rig Preview
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(132.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val ridgeColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.24f)
+                        val roadColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.30f)
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val path = Path().apply {
+                                moveTo(0f, size.height * 0.76f)
+                                lineTo(size.width * 0.22f, size.height * 0.42f)
+                                lineTo(size.width * 0.40f, size.height * 0.60f)
+                                lineTo(size.width * 0.68f, size.height * 0.24f)
+                                lineTo(size.width, size.height * 0.66f)
+                            }
+                            drawPath(path, color = ridgeColor, style = Stroke(width = 3f))
+                            drawLine(
+                                color = roadColor,
+                                start = Offset(size.width * 0.08f, size.height * 0.85f),
+                                end = Offset(size.width * 0.92f, size.height * 0.85f),
+                                strokeWidth = 2.5f
+                            )
+                        }
+                        VehicleRigIllustration(
+                            bodyStyle = bodyStyle,
+                            accentColor = Color(colorHex),
+                            rigGear = rigGear,
                             modifier = Modifier
-                                .size(30.dp)
-                                .clip(CircleShape)
-                                .background(Color(hex))
-                                .border(
-                                    width = if (selected) 2.5.dp else 1.dp,
-                                    color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                                    shape = CircleShape
-                                )
-                                .clickable { colorHex = hex }
-                                .testTag("garage_color_${java.lang.Long.toHexString(hex)}")
+                                .fillMaxSize()
+                                .padding(horizontal = 22.dp, vertical = 10.dp)
                         )
+                    }
+
+                    OutlinedTextField(
+                        value = nickname,
+                        onValueChange = { nickname = it },
+                        label = { Text("Rig Nickname (e.g., Desert Jimny)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("vehicle_nickname_input")
+                    )
+
+                    OutlinedTextField(
+                        value = makeModel,
+                        onValueChange = { makeModel = it },
+                        label = { Text("Make & Model (e.g., Suzuki Jimny)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("vehicle_model_input")
+                    )
+
+                    OutlinedTextField(
+                        value = odometerInput,
+                        onValueChange = { odometerInput = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                        label = {
+                            Text(
+                                if (distanceUnit == DistanceUnit.MI) "Base Odometer (mi)"
+                                else "Base Odometer (km)"
+                            )
+                        },
+                        placeholder = { Text("0") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        leadingIcon = { Icon(Icons.Rounded.Speed, contentDescription = null) },
+                        modifier = Modifier.fillMaxWidth().testTag("vehicle_odometer_input")
+                    )
+
+                    Text("BODY STYLE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        VehicleBodyStyle.entries.forEach { style ->
+                            FilterChip(
+                                selected = bodyStyle == style,
+                                onClick = { bodyStyle = style },
+                                label = { Text(style.label) },
+                                modifier = Modifier.testTag("garage_style_${style.name.lowercase()}")
+                            )
+                        }
+                    }
+
+                    Text("RIG GEAR & TRIM", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        VehicleRigGear.entries.forEach { gear ->
+                            FilterChip(
+                                selected = rigGear == gear,
+                                onClick = { rigGear = gear },
+                                label = { Text(gear.label) },
+                                modifier = Modifier.testTag("garage_gear_${gear.name.lowercase()}")
+                            )
+                        }
+                    }
+
+                    Text("DRIVETRAIN & FUEL", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        listOf("4x4", "AWD", "FWD", "2WD").forEach { dt ->
+                            FilterChip(
+                                selected = drivetrain == dt,
+                                onClick = { drivetrain = dt },
+                                label = { Text(dt) }
+                            )
+                        }
+                        listOf("Diesel", "Gasoline", "Hybrid", "EV").forEach { fuel ->
+                            FilterChip(
+                                selected = fuelType == fuel,
+                                onClick = { fuelType = fuel },
+                                label = { Text(fuel) }
+                            )
+                        }
+                    }
+
+                    Text("PAINT COLOR", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        colorSwatches.forEach { hex ->
+                            val selected = colorHex == hex
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .clickable(role = Role.Button) { colorHex = hex }
+                                    .testTag("garage_color_${java.lang.Long.toHexString(hex)}"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(hex))
+                                        .border(
+                                            width = if (selected) 2.5.dp else 1.dp,
+                                            color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+                                            shape = CircleShape
+                                        )
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.height(48.dp)
+                    ) {
+                        Text("Cancel")
+                    }
+                    Button(
+                        onClick = {
+                            val rawOdo = odometerInput.toDoubleOrNull()?.coerceAtLeast(0.0) ?: 0.0
+                            val odoKm = if (distanceUnit == DistanceUnit.MI) rawOdo * 1.609344 else rawOdo
+                            onSave(nickname, makeModel, bodyStyle, drivetrain, fuelType, colorHex, odoKm, rigGear)
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .testTag("save_vehicle_button")
+                    ) {
+                        Text(if (existing == null) "Save Rig" else "Update Rig")
                     }
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val rawOdo = odometerInput.toDoubleOrNull()?.coerceAtLeast(0.0) ?: 0.0
-                    val odoKm = if (distanceUnit == DistanceUnit.MI) rawOdo * 1.609344 else rawOdo
-                    onSave(nickname, makeModel, bodyStyle, drivetrain, fuelType, colorHex, odoKm, rigGear)
-                },
-                modifier = Modifier.testTag("save_vehicle_button")
-            ) {
-                Text(if (existing == null) "Save Rig" else "Update Rig")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
-    )
+    }
 }
