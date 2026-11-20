@@ -224,6 +224,7 @@ fun TrackScreen(
                 centerLon = mapCenterLon,
                 zoom = mapZoom,
                 interactive = true,
+                showScaleBadge = false,
                 onCenterChanged = { lat, lon, z ->
                     followGps = false
                     mapCenterLat = lat

@@ -376,4 +376,43 @@ class KalyeUnitTest {
             com.example.data.model.RigAvatarBackdrop.safeFrom("UNKNOWN_SCENE")
         )
     }
+
+    @Test
+    fun `roadmap share card computes full-route viewport covering all points and stops`() {
+        assertTrue(com.example.data.model.ShareCardLayout.entries.contains(com.example.data.model.ShareCardLayout.ROADMAP_CARD))
+        val pts = listOf(
+            RoutePoint(16.4023, 120.5960, 1465.0),
+            RoutePoint(16.4940, 120.6710, 2110.0),
+            RoutePoint(16.5980, 120.7380, 1615.0)
+        )
+        val stop = TripStop(
+            id = "s1",
+            userId = "u1",
+            tripId = "t1",
+            stopType = StopType.FUEL,
+            title = "Atok",
+            note = "",
+            latitude = 16.4940,
+            longitude = 120.6710,
+            elevationMeters = 2110.0,
+            costAmount = 1000.0,
+            fuelLiters = 15.0,
+            pricePerLiter = 66.6,
+            currencyCode = "PHP",
+            timestampMillis = 1000L
+        )
+        val viewport = com.example.export.ShareCardRenderer.computeRoadmapViewport(
+            points = pts,
+            stops = listOf(stop),
+            width = 1080,
+            height = 1350
+        )
+        assertTrue(viewport.intZoom in 4..15)
+        assertTrue(viewport.visibleTiles.isNotEmpty())
+        pts.forEach { p ->
+            val (px, py) = viewport.project(p.latitude, p.longitude)
+            assertTrue(px in 40f..1040f)
+            assertTrue(py in 120f..980f)
+        }
+    }
 }

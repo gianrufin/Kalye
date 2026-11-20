@@ -228,28 +228,30 @@ fun TripDetailScreen(
                     Button(
                         onClick = { onOpenShareCard(currentTrip.id) },
                         shape = RoundedCornerShape(14.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp),
                         modifier = Modifier
-                            .weight(1.2f)
+                            .weight(1.35f)
                             .height(50.dp)
                             .testTag("open_share_card_button")
                     ) {
                         Icon(Icons.Rounded.Image, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Share Card")
+                        Text("Share Card", maxLines = 1, softWrap = false)
                     }
                     FilledTonalButton(
                         onClick = {
                             GpxExporter.exportAndShare(context, currentTrip, effectivePoints, stops)
                         },
                         shape = RoundedCornerShape(14.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp),
                         modifier = Modifier
-                            .weight(1f)
+                            .weight(0.9f)
                             .height(50.dp)
                             .testTag("export_gpx_button")
                     ) {
                         Icon(Icons.Rounded.Route, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("GPX")
+                        Text("GPX", maxLines = 1, softWrap = false)
                     }
                     OutlinedButton(
                         onClick = {
@@ -259,8 +261,9 @@ fun TripDetailScreen(
                             SpreadsheetExporter.exportAndShareCsv(context, currentTrip.title, csv)
                         },
                         shape = RoundedCornerShape(14.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp),
                         modifier = Modifier
-                            .weight(1f)
+                            .weight(0.9f)
                             .height(50.dp)
                             .testTag("export_csv_button")
                     ) {

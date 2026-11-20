@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kalye — Offline-First Overland &amp; Ride Tracker for Android</title>
+  <meta name="description" content="Track mountain passes, log fuel and ferry stops, profile elevation with barometer fusion, customize your 4x4 or moto rig, and export transparent Strava-style share cards — even without cell signal." />
+  <meta property="og:title" content="Kalye — Offline-First Overland & Ride Tracker" />
+  <meta property="og:description" content="GPS route tracking, zero-API minimal street maps, custom vehicle garage, elevation profiles, and Strava-style PNG share cards for Android." />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#C86428" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231E4D3B'/%3E%3Cpath d='M12 48L26 20l9 15 6-9 11 22H12z' fill='%23C86428'/%3E%3Cpath d='M18 46c10-6 18-10 28-22' stroke='%23F5F2EB' stroke-width='3.5' stroke-linecap='round' fill='none'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Manrope:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="topo-backdrop" aria-hidden="true"></div>
+
+  <!-- Top Navigation -->
+  <header class="site-header" id="top">
+    <div class="container nav-inner">
+      <a href="#top" class="brand" aria-label="Kalye Home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 40 40" width="36" height="36" fill="none">
+            <rect width="40" height="40" rx="11" fill="#1E4D3B" />
+            <path d="M7 30L16 12l5.5 9.5L26 15.5 33 30H7z" fill="#C86428" />
+            <path d="M10.5 29c6.5-4 12-7 18.5-15" stroke="#F5F2EB" stroke-width="2.4" stroke-linecap="round" />
+            <circle cx="29" cy="14" r="2.2" fill="#F5F2EB" />
+          </svg>
+        </span>
+        <span class="brand-text">
+          <span class="brand-name">KALYE</span>
+          <span class="brand-sub">OVERLAND TRACKER</span>
+        </span>
+      </a>
+
+      <nav class="nav-links" aria-label="Primary navigation">
+        <a href="#screens">Screens</a>
+        <a href="#features">Features</a>
+        <a href="#garage">Garage</a>
+        <a href="#download">Download</a>
+      </nav>
+
+      <div class="nav-actions">
+        <button type="button" class="icon-btn" id="themeToggle" aria-label="Toggle light and dark theme" title="Toggle Light / Dark theme">
+          <svg class="icon-sun" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4"></circle>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
+          </svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"></path>
+          </svg>
+        </button>
+
+        <a href="https://github.com/gianrufin/Kalye/releases/latest" class="btn btn-primary btn-sm js-apk-download" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>Download APK</span>
+        </a>
+
+        <button type="button" class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+            <line x1="4" y1="7" x2="20" y2="7"></line>
+            <line x1="4" y1="12" x2="20" y2="12"></line>
+            <line x1="4" y1="17" x2="20" y2="17"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="mobile-drawer" id="mobileDrawer" hidden>
+      <a href="#screens">Screens</a>
+      <a href="#features">Features</a>
+      <a href="#garage">Garage</a>
+      <a href="#download">Download APK</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <div class="eyebrow-pill reveal" style="--delay: 0ms;">
+            <span class="pulse-dot" aria-hidden="true"></span>
+            <span>OFFLINE-FIRST ANDROID TRACKER</span>
+            <span class="version-chip js-version-badge">v1.0.2</span>
+          </div>
+
+          <h1 class="hero-title reveal" style="--delay: 80ms;">
+            Track every climb. <br />
+            <span class="accent-gradient">Log every overland mile.</span>
+          </h1>
+
+          <p class="hero-lead reveal" style="--delay: 160ms;">
+            Kalye is a minimal, zero-clutter GPS expedition tracker built for 4x4 rigs, pickups, daily cruisers, and adventure motorcycles. Record elevation-accurate routes alongside Google Maps or Android Auto, log fuel and ferry stops, and export transparent Strava-style PNG stickers—even miles beyond cell service.
+          </p>
+
+          <div class="hero-cta-row reveal" style="--delay: 240ms;">
+            <a href="https://github.com/gianrufin/Kalye/releases/latest" class="btn btn-primary btn-lg js-apk-download" target="_blank" rel="noopener noreferrer">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span>Download APK</span>
+              <span class="btn-meta js-apk-meta">Android 7.0+</span>
+            </a>
+
+            <a href="#screens" class="btn btn-outline btn-lg">
+              <span>Explore Actual Screens</span>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </a>
+          </div>
+
+          <div class="hero-metrics reveal" style="--delay: 320ms;">
+            <div class="metric-pill">
+              <span class="metric-value">0 API Keys</span>
+              <span class="metric-label">Free Minimal Street Tiles</span>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-value">8 Rig Types</span>
+              <span class="metric-label">4x4, Pickup, Sedan, Moto</span>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-value">MSL + Baro</span>
+              <span class="metric-label">Stabilized Altitude Gain</span>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-value">PNG / GPX</span>
+              <span class="metric-label">Alpha Stickers &amp; CSV</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Animated Layered Phone Showcase using Real Rendered App Screens -->
+        <div class="hero-stage reveal" style="--delay: 180ms;">
+          <div class="stage-glow" aria-hidden="true"></div>
+
+          <figure class="phone-float phone-left">
+            <div class="device-frame device-compact">
+              <div class="device-camera" aria-hidden="true"></div>
+              <img src="assets/screenshots/garage.png" alt="Kalye Vehicle Garage screen showing Olive 4x4 SUV, Trail Pickup, and custom rigs" loading="eager" />
+            </div>
+          </figure>
+
+          <figure class="phone-float phone-center">
+            <div class="device-frame device-hero">
+              <div class="device-camera" aria-hidden="true"></div>
+              <img src="assets/screenshots/track_live.png" alt="Kalye active GPS tracking cockpit over minimal dark street map" loading="eager" />
+            </div>
+            <div class="floating-badge badge-top" aria-hidden="true">
+              <span class="badge-dot green"></span>
+              <span>GPS ±3m • 2,110 m ALT</span>
+            </div>
+            <div class="floating-badge badge-bottom" aria-hidden="true">
+              <span>Auto-Pause 25s • Foreground GPS</span>
+            </div>
+          </figure>
+
+          <figure class="phone-float phone-right">
+            <div class="device-frame device-compact">
+              <div class="device-camera" aria-hidden="true"></div>
+              <img src="assets/screenshots/share_card.png" alt="Kalye Strava-style transparent PNG Share Card Studio" loading="eager" />
+            </div>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interactive Real App Screenshots Explorer -->
+    <section class="section section-tinted" id="screens">
+      <div class="container">
+        <div class="section-header reveal">
+          <span class="section-kicker">INSIDE THE APP</span>
+          <h2>Actual screens rendered from Kalye’s Jetpack Compose UI</h2>
+          <p>Switch views to inspect every screen—or click any screenshot to zoom in full detail.</p>
+        </div>
+
+        <div class="screen-tabs reveal" role="tablist" aria-label="App screen selector">
+          <button type="button" class="screen-tab is-active" role="tab" aria-selected="true" data-screen="track_live">
+            <span class="tab-dot"></span>Live Cockpit
+          </button>
+          <button type="button" class="screen-tab" role="tab" aria-selected="false" data-screen="garage">
+            <span class="tab-dot"></span>Vehicle Garage
+          </button>
+          <button type="button" class="screen-tab" role="tab" aria-selected="false" data-screen="trip_detail">
+            <span class="tab-dot"></span>Trip Detail
+          </button>
+          <button type="button" class="screen-tab" role="tab" aria-selected="false" data-screen="share_card">
+            <span class="tab-dot"></span>Share Studio
+          </button>
+          <button type="button" class="screen-tab" role="tab" aria-selected="false" data-screen="trips_history">
+            <span class="tab-dot"></span>Ride History
+          </button>
+        </div>
+
+        <div class="showcase-panel reveal">
+          <div class="showcase-device-col">
+            <div class="device-frame device-showcase" id="activeScreenFrame" role="button" tabindex="0" aria-label="Zoom active app screenshot">
+              <div class="device-camera" aria-hidden="true"></div>
+              <img id="activeScreenImg" src="assets/screenshots/track_live.png" alt="Kalye live GPS cockpit screen" />
+              <span class="zoom-hint">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                Click to zoom
+              </span>
+            </div>
+          </div>
+
+          <div class="showcase-info-col" id="activeScreenInfo">
+            <span class="screen-tag" id="screenTag">01 / LIVE TRACKING COCKPIT</span>
+            <h3 id="screenTitle">Zero-flicker cockpit over minimal street maps</h3>
+            <p id="screenDesc">Designed to run cleanly alongside Google Maps or Android Auto without clutter. Features an isolated 1-second moving timer, 25-second stationary traffic auto-pause, OLED Stealth Battery-Saver view, and one-tap Fuel, Ferry, Camp, and Stop-Over logging.</p>
+            <ul class="screen-bullets" id="screenBullets">
+              <li>Free OSM-backed muted street canvas (zero API key required)</li>
+              <li>MSL geoid + barometer pressure fusion for accurate climb tracking</li>
+              <li>One-handed thumb-zone Pause &amp; Finish controls</li>
+            </ul>
+            <div class="mini-thumbs" aria-label="All actual screenshots">
+              <button type="button" class="thumb-card is-active" data-screen="track_live">
+                <img src="assets/screenshots/track_live.png" alt="Live Cockpit thumbnail" loading="lazy" />
+                <span>Track</span>
+              </button>
+              <button type="button" class="thumb-card" data-screen="garage">
+                <img src="assets/screenshots/garage.png" alt="Vehicle Garage thumbnail" loading="lazy" />
+                <span>Garage</span>
+              </button>
+              <button type="button" class="thumb-card" data-screen="trip_detail">
+                <img src="assets/screenshots/trip_detail.png" alt="Trip Detail thumbnail" loading="lazy" />
+                <span>Detail</span>
+              </button>
+              <button type="button" class="thumb-card" data-screen="share_card">
+                <img src="assets/screenshots/share_card.png" alt="Share Studio thumbnail" loading="lazy" />
+                <span>Share</span>
+              </button>
+              <button type="button" class="thumb-card" data-screen="trips_history">
+                <img src="assets/screenshots/trips_history.png" alt="Ride History thumbnail" loading="lazy" />
+                <span>History</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Feature Bento Grid -->
+    <section class="section" id="features">
+      <div class="container">
+        <div class="section-header reveal">
+          <span class="section-kicker">BUILT FOR OVERLANDING</span>
+          <h2>Everything needed for long drives, zero signal, and clean stats</h2>
+          <p>Offline SQLite persistence at the core, plus optional Google Sign-In Cloud Sync and built-in GitHub release scanning.</p>
+        </div>
+
+        <div class="features-grid">
+          <article class="feature-card reveal" style="--delay: 0ms;">
+            <div class="feature-icon icon-terracotta">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line></svg>
+            </div>
+            <h3>Minimal Muted Street Maps</h3>
+            <p>Clean vector-styled street tiles with zero API key setup, zero traffic clutter, and instant Offline-Only toggle with sector caching.</p>
+          </article>
+
+          <article class="feature-card reveal" style="--delay: 70ms;">
+            <div class="feature-icon icon-pine">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 3 4 8 5-5 5 15H2L8 3z"></path></svg>
+            </div>
+            <h3>Barometer + MSL Elevation</h3>
+            <p>Combines Android geoid MSL altitude with device pressure sensor deltas and hysteresis filtering so mountain climb totals stay honest.</p>
+          </article>
+
+          <article class="feature-card reveal" style="--delay: 140ms;">
+            <div class="feature-icon icon-brass">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            </div>
+            <h3>Smart 25s Traffic Auto-Pause</h3>
+            <p>Pauses moving time automatically after 25 seconds stationary in traffic or toll queues and resumes smoothly when wheels turn again.</p>
+          </article>
+
+          <article class="feature-card reveal" style="--delay: 210ms;">
+            <div class="feature-icon icon-terracotta">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+            </div>
+            <h3>Fuel, Ferry &amp; Camp Ledger</h3>
+            <p>Log liters filled, cost per liter, Ro-Ro ferry tickets, and camp fees on the road. Computes real km/L (or mpg) and cost per distance.</p>
+          </article>
+
+          <article class="feature-card reveal" style="--delay: 280ms;">
+            <div class="feature-icon icon-pine">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+            </div>
+            <h3>Transparent PNG Share Cards</h3>
+            <p>Export Strava-style alpha PNG overlays with moving time, distance, elevation, trip title, and route trail saved with unique timestamp filenames.</p>
+          </article>
+
+          <article class="feature-card reveal" style="--delay: 350ms;">
+            <div class="feature-icon icon-brass">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            </div>
+            <h3>GPX 1.1, CSV &amp; Stealth HUD</h3>
+            <p>Share GPX tracks and CSV spreadsheets anytime, switch to pitch-black OLED Stealth HUD on night drives, and check GitHub APK updates in-app.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Custom Vehicle Garage & Rig Studio Section -->
+    <section class="section section-tinted" id="garage">
+      <div class="container garage-split">
+        <div class="garage-media reveal">
+          <div class="device-frame device-showcase">
+            <div class="device-camera" aria-hidden="true"></div>
+            <img src="assets/screenshots/garage.png" alt="Kalye Vehicle Garage with Olive 4x4 SUV, Trail Pickup, City Cruiser, and Alpine Moto" loading="lazy" />
+          </div>
+        </div>
+
+        <div class="garage-copy reveal" style="--delay: 120ms;">
+          <span class="section-kicker">VEHICLE GARAGE &amp; AVATAR STUDIO</span>
+          <h2>Every ride tied to the exact rig you drove</h2>
+          <p>
+            Start clean with zero preloaded cars—set up your own rigs from scratch, customize paint swatches (including Pearl White, Olive, Terracotta, Sand Dune, and Basalt), track starting odometer mileage, and filter your entire Ride History by vehicle.
+          </p>
+
+          <div class="rig-chip-grid">
+            <span class="rig-chip">4x4 SUV</span>
+            <span class="rig-chip">Crew-Cab Pickup</span>
+            <span class="rig-chip">Crossover</span>
+            <span class="rig-chip">Touring Sedan</span>
+            <span class="rig-chip">Hatchback</span>
+            <span class="rig-chip">Sport Coupe</span>
+            <span class="rig-chip">Camper Van</span>
+            <span class="rig-chip">Adventure Moto</span>
+          </div>
+
+          <div class="callout-card">
+            <strong>Rig Avatar Studio</strong>
+            <p>Turn your favorite rig with Expedition rack or Rally trim into a custom compass-ring explorer badge with alpine, desert, coastal, or ridge backdrops.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Download & GitHub Release Center -->
+    <section class="section" id="download">
+      <div class="container">
+        <div class="download-banner reveal">
+          <div class="download-left">
+            <span class="section-kicker">DIRECT ANDROID RELEASE</span>
+            <h2>Get Kalye on your Android device</h2>
+            <p class="js-release-summary">
+              Latest compiled APK signed and published directly via GitHub Releases, with in-app update scanning under <strong>Settings → Check for Updates</strong>.
+            </p>
+
+            <div class="release-meta-row" id="releaseMetaRow">
+              <span class="meta-pill">Version: <strong class="js-version-badge">v1.0.2</strong></span>
+              <span class="meta-pill">File: <strong class="js-apk-filename">kalye-latest.apk</strong></span>
+              <span class="meta-pill">Min OS: <strong>Android 7.0+ (API 24)</strong></span>
+            </div>
+
+            <div class="hero-cta-row">
+              <a href="https://github.com/gianrufin/Kalye/releases/latest" class="btn btn-primary btn-lg js-apk-download" target="_blank" rel="noopener noreferrer">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>Download Latest APK</span>
+              </a>
+              <a href="https://github.com/gianrufin/Kalye/releases" class="btn btn-outline btn-lg" target="_blank" rel="noopener noreferrer">
+                <span>All Releases</span>
+              </a>
+              <a href="https://github.com/gianrufin/Kalye" class="btn btn-outline btn-lg" target="_blank" rel="noopener noreferrer">
+                <span>GitHub Repo</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="download-steps">
+            <h3>3-Step Android Install</h3>
+            <ol class="step-list">
+              <li>
+                <span class="step-num">1</span>
+                <div>
+                  <strong>Download APK</strong>
+                  <span>Tap <em>Download Latest APK</em> above to grab the latest release build.</span>
+                </div>
+              </li>
+              <li>
+                <span class="step-num">2</span>
+                <div>
+                  <strong>Allow Package Install</strong>
+                  <span>Open the downloaded `.apk` and allow installs from your browser once.</span>
+                </div>
+              </li>
+              <li>
+                <span class="step-num">3</span>
+                <div>
+                  <strong>Set Up Your First Rig</strong>
+                  <span>Customize your car or motorcycle, download offline map sectors, and hit the trail.</span>
+                </div>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <span class="brand-name">KALYE</span>
+        <span>Offline-First Overland &amp; Ride Tracker • Kotlin &amp; Jetpack Compose</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/gianrufin/Kalye" target="_blank" rel="noopener noreferrer">Repository</a>
+        <a href="https://github.com/gianrufin/Kalye/releases" target="_blank" rel="noopener noreferrer">Releases</a>
+        <a href="#top">Back to top</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Full-Screen Screenshot Lightbox -->
+  <div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-label="Screenshot zoom viewer">
+    <button type="button" class="lightbox-close" id="lightboxClose" aria-label="Close zoom viewer">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </button>
+    <div class="lightbox-content">
+      <img id="lightboxImg" src="" alt="" />
+      <p id="lightboxCaption"></p>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

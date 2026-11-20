@@ -17,6 +17,19 @@
 
 ---
 
+## Landing Page (GitHub Pages)
+
+> **Live Website URL (once published):** `https://gianrufin.github.io/Kalye/`
+
+The static landing page lives in `docs/` (`docs/index.html`, `docs/styles.css`, `docs/app.js`, and `docs/assets/screenshots/*.png`) and is automatically deployed via `.github/workflows/deploy-pages.yml`.
+
+### Publishing on GitHub Pages
+1. Push this repository (`docs/` and `.github/workflows/deploy-pages.yml`) to `main` (or `master`) on GitHub.
+2. Open your repository on GitHub → **Settings → Pages → Build and deployment → Source** and select **GitHub Actions**.
+3. Re-run **Actions → Deploy Landing Page to GitHub Pages** (or push any update in `docs/`) and your site will go live at `https://gianrufin.github.io/Kalye/`.
+
+---
+
 ## Features
 
 - **High-Accuracy GPS & Foreground Tracking** — Records route geometry, elevation, and speed via `FusedLocationProviderClient` inside a location foreground service for uninterrupted backcountry recording.

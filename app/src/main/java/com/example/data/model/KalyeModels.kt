@@ -68,7 +68,8 @@ enum class ShareCardLayout(val label: String) {
     CLASSIC_STACK("Centered"),
     CORNER_EDITORIAL("Editorial"),
     COMPACT_BAR("Bottom Strip"),
-    ROUTE_HERO("Trail Focus")
+    ROUTE_HERO("Trail Focus"),
+    ROADMAP_CARD("Roadmap")
 }
 
 enum class ShareCardInkStyle(val label: String, val isTransparent: Boolean) {

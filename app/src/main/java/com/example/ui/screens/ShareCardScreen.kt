@@ -33,6 +33,8 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.GridOn
 import androidx.compose.material.icons.rounded.Landscape
+import androidx.compose.material.icons.rounded.Map
+import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Route
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Button
@@ -79,9 +81,7 @@ import com.example.data.model.ShareCardLayout
 import com.example.export.ShareCardConfig
 import com.example.export.ShareCardRenderer
 import com.example.ui.KalyeViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @Composable
 fun ShareCardScreen(
@@ -95,6 +95,7 @@ fun ShareCardScreen(
 
     val trip by viewModel.observeTripById(tripId).collectAsStateWithLifecycle(initialValue = null)
     val dbPoints by viewModel.observePointsForTrip(tripId).collectAsStateWithLifecycle(initialValue = emptyList())
+    val stops by viewModel.observeStopsForTrip(tripId).collectAsStateWithLifecycle(initialValue = emptyList())
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
 
     val effectivePoints = remember(dbPoints, trip) {
@@ -108,12 +109,16 @@ fun ShareCardScreen(
                 layout = ShareCardLayout.CLASSIC_STACK,
                 inkStyle = ShareCardInkStyle.WHITE_TRANSPARENT,
                 distanceUnit = preferences.distanceUnit,
-                showTrailLine = true
+                showTrailLine = true,
+                showStopsOnMap = true
             )
         )
     }
 
     var previewOverPhoto by remember { mutableStateOf(true) }
+    var isExporting by remember { mutableStateOf(false) }
+
+    val isRoadmap = config.layout == ShareCardLayout.ROADMAP_CARD
 
     val currentTrip = trip
     if (currentTrip == null) {
@@ -123,17 +128,23 @@ fun ShareCardScreen(
         return
     }
 
-    val previewBitmap by produceState<Bitmap?>(initialValue = null, currentTrip, effectivePoints, config) {
-        value = withContext(Dispatchers.Default) {
-            ShareCardRenderer.renderToBitmap(
-                context = context,
-                trip = currentTrip,
-                points = effectivePoints,
-                config = config,
-                width = 720,
-                height = 900
-            )
-        }
+    val previewBitmap by produceState<Bitmap?>(
+        initialValue = null,
+        currentTrip,
+        effectivePoints,
+        stops,
+        config
+    ) {
+        value = ShareCardRenderer.renderToBitmapAsync(
+            context = context,
+            trip = currentTrip,
+            points = effectivePoints,
+            stops = stops,
+            config = config,
+            tileManager = viewModel.tileManager,
+            width = 720,
+            height = 900
+        )
     }
 
     Scaffold(
@@ -163,23 +174,25 @@ fun ShareCardScreen(
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "Transparent PNG Sticker",
+                        text = if (isRoadmap) "Travel Roadmap Card" else "Transparent PNG Sticker",
                         style = MaterialTheme.typography.titleLarge
                     )
                 }
-                FilterChip(
-                    selected = !previewOverPhoto,
-                    onClick = { previewOverPhoto = !previewOverPhoto },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = if (previewOverPhoto) Icons.Rounded.Landscape else Icons.Rounded.GridOn,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    },
-                    label = { Text(if (previewOverPhoto) "Photo" else "Alpha") },
-                    modifier = Modifier.testTag("toggle_preview_backdrop")
-                )
+                if (!isRoadmap && config.inkStyle.isTransparent) {
+                    FilterChip(
+                        selected = !previewOverPhoto,
+                        onClick = { previewOverPhoto = !previewOverPhoto },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = if (previewOverPhoto) Icons.Rounded.Landscape else Icons.Rounded.GridOn,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        label = { Text(if (previewOverPhoto) "Photo" else "Alpha") },
+                        modifier = Modifier.testTag("toggle_preview_backdrop")
+                    )
+                }
             }
 
             Column(
@@ -189,7 +202,7 @@ fun ShareCardScreen(
                     .padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Live Strava-style PNG Preview (photo overlay preview or alpha checkerboard)
+                // Live Strava-style PNG / Travel Roadmap Preview
                 Surface(
                     shape = RoundedCornerShape(24.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
@@ -199,7 +212,7 @@ fun ShareCardScreen(
                         .aspectRatio(4f / 5f)
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
-                        if (config.inkStyle.isTransparent) {
+                        if (!isRoadmap && config.inkStyle.isTransparent) {
                             AnimatedContent(
                                 targetState = previewOverPhoto,
                                 transitionSpec = { fadeIn() togetherWith fadeOut() },
@@ -254,9 +267,9 @@ fun ShareCardScreen(
                     }
                 }
 
-                // Layout Selector (4 distinct Strava-like arrangements of Distance, Elevation, Moving Time, Title, Trail Line)
+                // Layout Selector (Centered, Editorial, Bottom Strip, Trail Focus, and full-route Roadmap)
                 Text(
-                    text = "STAT LAYOUT",
+                    text = "CARD LAYOUT",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -272,6 +285,8 @@ fun ShareCardScreen(
                             onClick = { config = config.copy(layout = layout) },
                             leadingIcon = if (config.layout == layout) {
                                 { Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            } else if (layout == ShareCardLayout.ROADMAP_CARD) {
+                                { Icon(Icons.Rounded.Map, contentDescription = null, modifier = Modifier.size(16.dp)) }
                             } else null,
                             label = { Text(layout.label) },
                             modifier = Modifier.testTag("layout_${layout.name.lowercase()}")
@@ -279,9 +294,9 @@ fun ShareCardScreen(
                     }
                 }
 
-                // Sticker Ink Style
+                // Sticker Ink / Roadmap Map Theme Style
                 Text(
-                    text = "STICKER INK",
+                    text = if (isRoadmap) "MAP THEME" else "STICKER INK",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -292,18 +307,27 @@ fun ShareCardScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ShareCardInkStyle.entries.forEach { ink ->
+                        val chipLabel = if (isRoadmap) {
+                            when (ink) {
+                                ShareCardInkStyle.WHITE_TRANSPARENT -> "Light Atlas"
+                                ShareCardInkStyle.DARK_TRANSPARENT -> "Slate Mono"
+                                ShareCardInkStyle.DARK_CARD -> "Night Map"
+                            }
+                        } else {
+                            ink.label
+                        }
                         FilterChip(
                             selected = config.inkStyle == ink,
                             onClick = { config = config.copy(inkStyle = ink) },
-                            label = { Text(ink.label) },
+                            label = { Text(chipLabel) },
                             modifier = Modifier.testTag("ink_${ink.name.lowercase()}")
                         )
                     }
                 }
 
-                // Mileage Unit + Trail Line Toggle
+                // Mileage Unit + Trail Line / Stop Pins Toggle
                 Text(
-                    text = "UNITS & TRAIL LINE",
+                    text = if (isRoadmap) "UNITS & MAP PINS" else "UNITS & TRAIL LINE",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -323,15 +347,27 @@ fun ShareCardScreen(
                         }
                     }
 
-                    FilterChip(
-                        selected = config.showTrailLine,
-                        onClick = { config = config.copy(showTrailLine = !config.showTrailLine) },
-                        leadingIcon = {
-                            Icon(Icons.Rounded.Route, contentDescription = null, modifier = Modifier.size(16.dp))
-                        },
-                        label = { Text("Trail Line") },
-                        modifier = Modifier.testTag("toggle_trail_line")
-                    )
+                    if (isRoadmap) {
+                        FilterChip(
+                            selected = config.showStopsOnMap,
+                            onClick = { config = config.copy(showStopsOnMap = !config.showStopsOnMap) },
+                            leadingIcon = {
+                                Icon(Icons.Rounded.Place, contentDescription = null, modifier = Modifier.size(16.dp))
+                            },
+                            label = { Text("Stop Pins") },
+                            modifier = Modifier.testTag("toggle_stop_pins")
+                        )
+                    } else {
+                        FilterChip(
+                            selected = config.showTrailLine,
+                            onClick = { config = config.copy(showTrailLine = !config.showTrailLine) },
+                            leadingIcon = {
+                                Icon(Icons.Rounded.Route, contentDescription = null, modifier = Modifier.size(16.dp))
+                            },
+                            label = { Text("Trail Line") },
+                            modifier = Modifier.testTag("toggle_trail_line")
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -349,15 +385,26 @@ fun ShareCardScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     OutlinedButton(
+                        enabled = !isExporting,
                         onClick = {
                             scope.launch {
-                                val res = withContext(Dispatchers.IO) {
-                                    ShareCardRenderer.savePngToGallery(context, currentTrip, effectivePoints, config)
-                                }
-                                res.onSuccess { filename ->
-                                    snackbarHostState.showSnackbar("Saved $filename to Pictures/Kalye")
-                                }.onFailure { err ->
-                                    snackbarHostState.showSnackbar(err.message ?: "Unable to save PNG")
+                                isExporting = true
+                                try {
+                                    val res = ShareCardRenderer.savePngToGalleryAsync(
+                                        context = context,
+                                        trip = currentTrip,
+                                        points = effectivePoints,
+                                        stops = stops,
+                                        config = config,
+                                        tileManager = viewModel.tileManager
+                                    )
+                                    res.onSuccess { filename ->
+                                        snackbarHostState.showSnackbar("Saved $filename to Pictures/Kalye")
+                                    }.onFailure { err ->
+                                        snackbarHostState.showSnackbar(err.message ?: "Unable to save PNG")
+                                    }
+                                } finally {
+                                    isExporting = false
                                 }
                             }
                         },
@@ -373,13 +420,28 @@ fun ShareCardScreen(
                     }
 
                     Button(
+                        enabled = !isExporting,
                         onClick = {
-                            ShareCardRenderer.exportAndSharePng(
-                                context = context,
-                                trip = currentTrip,
-                                points = effectivePoints,
-                                config = config
-                            )
+                            scope.launch {
+                                isExporting = true
+                                try {
+                                    val result = runCatching {
+                                        ShareCardRenderer.exportAndSharePngAsync(
+                                            context = context,
+                                            trip = currentTrip,
+                                            points = effectivePoints,
+                                            stops = stops,
+                                            config = config,
+                                            tileManager = viewModel.tileManager
+                                        )
+                                    }
+                                    result.onFailure { err ->
+                                        snackbarHostState.showSnackbar(err.message ?: "Unable to share PNG")
+                                    }
+                                } finally {
+                                    isExporting = false
+                                }
+                            }
                         },
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier
@@ -387,9 +449,17 @@ fun ShareCardScreen(
                             .height(54.dp)
                             .testTag("export_png_card_button")
                     ) {
-                        Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                        if (isExporting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                        }
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Share PNG", style = MaterialTheme.typography.titleMedium)
+                        Text(if (isExporting) "Rendering…" else "Share PNG", style = MaterialTheme.typography.titleMedium)
                     }
                 }
             }

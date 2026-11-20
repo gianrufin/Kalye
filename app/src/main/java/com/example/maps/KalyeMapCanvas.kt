@@ -79,6 +79,7 @@ fun KalyeMapCanvas(
     centerLon: Double,
     zoom: Double,
     interactive: Boolean = true,
+    showScaleBadge: Boolean = true,
     onCenterChanged: (Double, Double, Double) -> Unit = { _, _, _ -> },
     onViewportBoundsChanged: (MapViewportBounds) -> Unit = {},
     onStopTapped: (TripStop) -> Unit = {},
@@ -368,20 +369,22 @@ fun KalyeMapCanvas(
             }
         }
 
-        Surface(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(12.dp),
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-            tonalElevation = 2.dp
-        ) {
-            Text(
-                text = "Z${internalZoom.roundToInt()} • $scaleLabel",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-            )
+        if (showScaleBadge) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(12.dp),
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                tonalElevation = 2.dp
+            ) {
+                Text(
+                    text = "Z${internalZoom.roundToInt()} • $scaleLabel",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
         }
     }
 }
