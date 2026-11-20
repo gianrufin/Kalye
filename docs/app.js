@@ -99,13 +99,13 @@
     },
     share_card: {
       src: "assets/screenshots/share_card.png",
-      tag: "04 / STRAVA-STYLE PNG SHARE STUDIO",
-      title: "Transparent PNG trail stickers ready for any photo",
-      desc: "Generate crisp 1080×1350 PNG overlays featuring moving time, distance, elevation gain, trip title, and your exact GPS trail polyline—saved with unique yyyyMMdd_HHmmss.png filenames.",
+      tag: "04 / ROADMAP & PNG SHARE STUDIO",
+      title: "Travel Roadmap cards & transparent PNG stickers",
+      desc: "Switch between a full-route Travel Roadmap map card (Light Atlas, Slate Mono, or Night Map) and transparent 1080×1350 PNG overlays saved with unique yyyyMMdd_HHmmss.png filenames.",
       bullets: [
-        "Toggle Light/Dark ink over alpha transparency or dark studio card",
-        "Multiple clean typography layouts + Metric/Imperial switching",
-        "Live preview over your overland backdrop or alpha checkerboard"
+        "Switch between Sticker Overlay and full-route Travel Roadmap card",
+        "Shows Start/Finish markers, stop pins & clean summary HUD",
+        "Live preview over your overland backdrop, map theme, or alpha grid"
       ]
     },
     trips_history: {
@@ -225,7 +225,7 @@
     })
     .then(function (release) {
       if (!release) return;
-      const version = release.tag_name || "v1.0.2";
+      const version = release.tag_name || "v1.0.3";
       const assets = Array.isArray(release.assets) ? release.assets : [];
       const apkAsset = assets.find(function (a) {
         return a && typeof a.name === "string" && a.name.toLowerCase().endsWith(".apk");

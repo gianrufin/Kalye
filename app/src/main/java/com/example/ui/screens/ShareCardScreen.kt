@@ -9,10 +9,11 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -83,6 +84,7 @@ import com.example.export.ShareCardRenderer
 import com.example.ui.KalyeViewModel
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ShareCardScreen(
     tripId: String,
@@ -117,6 +119,7 @@ fun ShareCardScreen(
 
     var previewOverPhoto by remember { mutableStateOf(true) }
     var isExporting by remember { mutableStateOf(false) }
+    var lastStickerLayout by remember { mutableStateOf(ShareCardLayout.CLASSIC_STACK) }
 
     val isRoadmap = config.layout == ShareCardLayout.ROADMAP_CARD
 
@@ -267,30 +270,76 @@ fun ShareCardScreen(
                     }
                 }
 
-                // Layout Selector (Centered, Editorial, Bottom Strip, Trail Focus, and full-route Roadmap)
+                // Prominent Mode Switcher: Transparent Sticker vs Full-Route Travel Roadmap
                 Text(
-                    text = "CARD LAYOUT",
+                    text = "CARD TYPE",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ShareCardLayout.entries.forEach { layout ->
-                        FilterChip(
-                            selected = config.layout == layout,
-                            onClick = { config = config.copy(layout = layout) },
-                            leadingIcon = if (config.layout == layout) {
-                                { Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                            } else if (layout == ShareCardLayout.ROADMAP_CARD) {
-                                { Icon(Icons.Rounded.Map, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                            } else null,
-                            label = { Text(layout.label) },
-                            modifier = Modifier.testTag("layout_${layout.name.lowercase()}")
-                        )
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    SegmentedButton(
+                        selected = !isRoadmap,
+                        onClick = {
+                            if (isRoadmap) {
+                                config = config.copy(layout = lastStickerLayout)
+                            }
+                        },
+                        shape = SegmentedButtonDefaults.itemShape(0, 2),
+                        icon = {
+                            SegmentedButtonDefaults.Icon(active = !isRoadmap) {
+                                Icon(Icons.Rounded.Route, contentDescription = null, modifier = Modifier.size(16.dp))
+                            }
+                        },
+                        label = { Text("Sticker Overlay", maxLines = 1) },
+                        modifier = Modifier.testTag("mode_sticker_overlay")
+                    )
+                    SegmentedButton(
+                        selected = isRoadmap,
+                        onClick = {
+                            if (!isRoadmap) {
+                                lastStickerLayout = config.layout
+                                config = config.copy(layout = ShareCardLayout.ROADMAP_CARD)
+                            }
+                        },
+                        shape = SegmentedButtonDefaults.itemShape(1, 2),
+                        icon = {
+                            SegmentedButtonDefaults.Icon(active = isRoadmap) {
+                                Icon(Icons.Rounded.Map, contentDescription = null, modifier = Modifier.size(16.dp))
+                            }
+                        },
+                        label = { Text("Travel Roadmap", maxLines = 1) },
+                        modifier = Modifier.testTag("layout_roadmap_card")
+                    )
+                }
+
+                if (!isRoadmap) {
+                    // Sticker Layout Selector (wrapped in FlowRow so every layout is visible at a glance)
+                    Text(
+                        text = "STICKER LAYOUT",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ShareCardLayout.entries
+                            .filter { it != ShareCardLayout.ROADMAP_CARD }
+                            .forEach { layout ->
+                                FilterChip(
+                                    selected = config.layout == layout,
+                                    onClick = {
+                                        lastStickerLayout = layout
+                                        config = config.copy(layout = layout)
+                                    },
+                                    leadingIcon = if (config.layout == layout) {
+                                        { Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                                    } else null,
+                                    label = { Text(layout.label) },
+                                    modifier = Modifier.testTag("layout_${layout.name.lowercase()}")
+                                )
+                            }
                     }
                 }
 
@@ -300,11 +349,10 @@ fun ShareCardScreen(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ShareCardInkStyle.entries.forEach { ink ->
                         val chipLabel = if (isRoadmap) {

@@ -24,8 +24,8 @@ android {
         .orElse(providers.environmentVariable("APP_VERSION_CODE"))
         .orNull
         ?.toIntOrNull()
-    versionCode = envVersionCode ?: 10002
-    versionName = envVersionName?.removePrefix("v") ?: "1.0.2"
+    versionCode = envVersionCode ?: 10003
+    versionName = envVersionName?.removePrefix("v") ?: "1.0.3"
 
     buildConfigField("String", "GITHUB_REPO_OWNER", "\"gianrufin\"")
     buildConfigField("String", "GITHUB_REPO_NAME", "\"Kalye\"")
